@@ -152,7 +152,7 @@ module ActionController
         end
 
         def load_session_cookies(env)
-          cookies_str = env["rack.request.cookie_string"]
+          cookies_str = env["HTTP_COOKIE"]
           cookies = Rack::Utils.parse_query(cookies_str, ';,')
           cookies[@key] === Array ? cookies[@key] : [cookies[@key]]
         end
