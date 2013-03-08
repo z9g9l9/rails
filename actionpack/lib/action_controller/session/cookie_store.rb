@@ -151,12 +151,20 @@ module ActionController
           current_session_id(env).present?
         end
 
+        def load_session_cookies(env)
+          cookies_str = env["rack.request.cookie_string"]
+          cookies = Rack::Utils.parse_query(cookies_str, ';,')
+          cookies[@key] === Array ? cookies[@key] : [cookies[@key]]
+        end
+
         def unpacked_cookie_data(env)
           env["action_dispatch.request.unsigned_session_cookie"] ||= begin
             stale_session_check! do
-              request = Rack::Request.new(env)
-              session_data = request.cookies[@key]
-              unmarshal(session_data) || {}
+              valid_cookie = nil
+              load_session_cookies(env).each do |cookie|
+                break if valid_cookie = unmarshal(cookie)
+              end
+              valid_cookie || {}
             end
           end
         end
