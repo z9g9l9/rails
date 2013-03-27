@@ -1,5 +1,6 @@
 require 'active_support/core_ext/object/to_param'
 require 'active_support/core_ext/regexp'
+require 'active_support/file_update_checker'
 
 module ActionController
   # The routing module provides URL rewriting in native Ruby. It's a way to
@@ -277,6 +278,22 @@ module ActionController
     # A helper module to hold URL related helpers.
     module Helpers #:nodoc:
       include PolymorphicRoutes
+    end
+
+    Routes = RouteSet.new
+
+    def self.routes_reloader
+      @routes_reloader ||= ActiveSupport::FileUpdateChecker.new([]){ reload_routes! }
+    end
+
+    def self.reload_routes!
+      _routes = Routes
+      _routes.disable_clear_and_finalize = true
+      _routes.clear!
+      routes_reloader.paths.each { |path| load(path) }
+      _routes.finalize!
+    ensure
+      _routes.disable_clear_and_finalize = false
     end
   end
 end

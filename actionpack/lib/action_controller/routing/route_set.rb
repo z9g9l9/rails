@@ -1,5 +1,6 @@
 require 'rack/mount'
 require 'forwardable'
+require 'active_support/concern'
 require 'active_support/core_ext/object/to_query'
 require 'action_controller/routing/deprecated_mapper'
 
@@ -12,7 +13,7 @@ module ActionController
       # alias inspect to to_s.
       alias inspect to_s
 
-      PARAMETERS_KEY = 'action_dispatch.request.path_parameters'
+      PARAMETERS_KEY = 'action_controller.request.path_parameters'
 
       class Dispatcher #:nodoc:
         def initialize(options={})
@@ -59,13 +60,13 @@ module ActionController
           unless controller = @controllers[controller_param]
             controller_name = "#{controller_param.camelize}Controller"
             controller = @controllers[controller_param] =
-              ActiveSupport::Dependencies.ref(controller_name)
+              ActiveSupport::Inflector.constantize(controller_name)
           end
-          controller.get
+          controller
         end
 
         def dispatch(controller, action, env)
-          controller.action(action).call(env)
+          controller.call(env).to_a
         end
 
         def merge_default_action!(params)
@@ -213,7 +214,7 @@ module ActionController
         { :new => 'new', :edit => 'edit' }
       end
 
-      def initialize(request_class = ActionDispatch::Request)
+      def initialize(request_class = ActionController::Request)
         self.routes = []
         self.named_routes = NamedRouteCollection.new
         self.resources_path_names = self.class.default_resources_path_names.dup

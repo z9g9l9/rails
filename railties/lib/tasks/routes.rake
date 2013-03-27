@@ -1,18 +1,28 @@
 desc 'Print out all defined routes in match order, with names. Target specific controller with CONTROLLER=x.'
 task :routes => :environment do
-  all_routes = ENV['CONTROLLER'] ? ActionController::Routing::Routes.routes.select { |route| route.defaults[:controller] == ENV['CONTROLLER'] } : ActionController::Routing::Routes.routes
-  routes = all_routes.collect do |route|
-    name = ActionController::Routing::Routes.named_routes.routes.index(route).to_s
-    verb = route.conditions[:method].to_s.upcase
-    segs = route.segments.inject("") { |str,s| str << s.to_s }
-    segs.chop! if segs.length > 1
-    reqs = route.requirements.empty? ? "" : route.requirements.inspect
-    {:name => name, :verb => verb, :segs => segs, :reqs => reqs}
+  ActionController::Routing.reload_routes!
+  all_routes = ActionController::Routing::Routes.routes
+
+  if ENV['CONTROLLER']
+    all_routes = all_routes.select{ |route| route.defaults[:controller] == ENV['CONTROLLER'] }
   end
-  name_width = routes.collect {|r| r[:name]}.collect {|n| n.length}.max
-  verb_width = routes.collect {|r| r[:verb]}.collect {|v| v.length}.max
-  segs_width = routes.collect {|r| r[:segs]}.collect {|s| s.length}.max
+
+  routes = all_routes.collect do |route|
+
+    reqs = route.requirements.dup
+    reqs[:to] = route.app unless route.app.class.name.to_s =~ /^ActionController::Routing/
+    reqs = reqs.empty? ? "" : reqs.inspect
+
+    {:name => route.name.to_s, :verb => route.verb.to_s, :path => route.path, :reqs => reqs}
+  end
+
+  routes.reject! { |r| r[:path] =~ %r{/rails/info/properties} } # Skip the route if it's internal info route
+
+  name_width = routes.map{ |r| r[:name].length }.max
+  verb_width = routes.map{ |r| r[:verb].length }.max
+  path_width = routes.map{ |r| r[:path].length }.max
+
   routes.each do |r|
-    puts "#{r[:name].rjust(name_width)} #{r[:verb].ljust(verb_width)} #{r[:segs].ljust(segs_width)} #{r[:reqs]}"
+    puts "#{r[:name].rjust(name_width)} #{r[:verb].ljust(verb_width)} #{r[:path].ljust(path_width)} #{r[:reqs]}"
   end
 end

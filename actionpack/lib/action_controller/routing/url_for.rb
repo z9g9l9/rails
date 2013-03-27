@@ -1,3 +1,5 @@
+require 'active_support/concern'
+
 module ActionController
   module Routing
     # In <tt>config/routes.rb</tt> you define URL-to-controller mappings, but the reverse

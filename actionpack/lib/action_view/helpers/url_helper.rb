@@ -9,6 +9,16 @@ module ActionView
     module UrlHelper
       include JavaScriptHelper
 
+      extend ActiveSupport::Concern
+
+      include ActionController::Routing::UrlFor
+      include TagHelper
+
+      def url_options
+        return super unless @controller.respond_to?(:url_options)
+        @controller.url_options
+      end
+
       # Returns the URL for the set of +options+ provided. This takes the
       # same options as +url_for+ in Action Controller (see the
       # documentation for ActionController::Base#url_for). Note that by default
@@ -72,8 +82,8 @@ module ActionView
         when String
           options
         when Hash
-          options = { :only_path => options[:host].nil? }.update(options.symbolize_keys)
-          @controller.send(:url_for, options)
+          options = options.symbolize_keys.reverse_merge!(:only_path => options[:host].nil?)
+          super
         when :back
           @controller.request.env["HTTP_REFERER"] || 'javascript:history.back()'
         else

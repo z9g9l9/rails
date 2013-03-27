@@ -122,7 +122,7 @@ module ActionController
         app = Routing::RouteSet::Dispatcher.new(:defaults => defaults, :glob => glob)
 
         conditions = {}
-        conditions[:request_method] = method if method
+        conditions[:request_method_string] = method if method
         conditions[:path_info] = path if path
         conditions[:subdomain] = subdomain if subdomain
 
