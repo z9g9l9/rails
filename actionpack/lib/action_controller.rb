@@ -38,7 +38,7 @@ module ActionController
   # TODO: Review explicit to see if they will automatically be handled by
   # the initilizer if they are really needed.
   def self.load_all!
-    [Base, CGIHandler, CgiRequest, Request, Response, Http::Headers, UrlRewriter, UrlWriter]
+    [Base, CGIHandler, CgiRequest, Request, Response, Http::Headers, UrlRewriter]
   end
 
   autoload :Base, 'action_controller/base'
@@ -78,7 +78,6 @@ module ActionController
   autoload :UploadedStringIO, 'action_controller/uploaded_file'
   autoload :UploadedTempfile, 'action_controller/uploaded_file'
   autoload :UrlRewriter, 'action_controller/url_rewriter'
-  autoload :UrlWriter, 'action_controller/url_rewriter'
   autoload :Verification, 'action_controller/verification'
 
   module Assertions
