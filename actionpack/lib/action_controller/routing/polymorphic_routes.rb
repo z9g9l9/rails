@@ -84,16 +84,14 @@ module ActionController
         record = extract_record(record_or_hash_or_array)
         record = record.to_model if record.respond_to?(:to_model)
 
-        args = case record_or_hash_or_array
-          when Hash;  [ record_or_hash_or_array ]
-          when Array; record_or_hash_or_array.dup
-          else        [ record_or_hash_or_array ]
-        end
+        args = Array === record_or_hash_or_array ?
+          record_or_hash_or_array.dup :
+          [ record_or_hash_or_array ]
 
-        inflection = if options[:action].to_s == "new"
+        inflection = if options[:action] && options[:action].to_s == "new"
           args.pop
           :singular
-        elsif (record.respond_to?(:persisted?) && !record.persisted?)
+        elsif record.respond_to?(:new_record?) && record.new_record?
           args.pop
           :plural
         elsif record.is_a?(Class)
@@ -155,7 +153,7 @@ module ActionController
               if parent.is_a?(Symbol) || parent.is_a?(String)
                 parent
               else
-                ActiveModel::Naming.plural(parent).singularize
+                RecordIdentifier.__send__("plural_class_name", parent).singularize
               end
             end
           end
@@ -163,9 +161,8 @@ module ActionController
           if record.is_a?(Symbol) || record.is_a?(String)
             route << record
           else
-            route << ActiveModel::Naming.plural(record)
+            route << RecordIdentifier.__send__("plural_class_name", record)
             route = [route.join("_").singularize] if inflection == :singular
-            route << "index" if ActiveModel::Naming.uncountable?(record) && inflection == :plural
           end
 
           route << routing_type(options)
