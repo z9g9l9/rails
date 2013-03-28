@@ -98,8 +98,6 @@ module ActionController #:nodoc:
       parameters.each do |key, value|
         if value.is_a? Fixnum
           value = value.to_s
-        elsif value.is_a? Array
-          value = ActionController::Routing::PathSegment::Result.new(value)
         end
 
         if extra_keys.include?(key.to_sym)
