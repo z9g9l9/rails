@@ -481,7 +481,7 @@ module ActionController #:nodoc:
 
     def build_request_uri(action, parameters)
       unless @request.env['REQUEST_URI']
-        options = @controller.__send__(:rewrite_options, parameters)
+        options = parameters
         options.update(:only_path => true, :action => action)
 
         url = ActionController::UrlRewriter.new(@request, parameters)
