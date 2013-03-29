@@ -130,7 +130,7 @@ module ActionController
       # performed on the location header.
       def follow_redirect!
         raise "not a redirect! #{@status} #{@status_message}" unless redirect?
-        get(interpret_uri(headers['location']))
+        get(headers['location'])
         status
       end
 
@@ -256,14 +256,15 @@ module ActionController
 
         # Performs the actual request.
         def process(method, path, parameters = nil, headers = nil)
-          data = requestify(parameters)
+          data = requestify(parameters) if !parameters.blank?
           path = interpret_uri(path) if path =~ %r{://}
           path = "/#{path}" unless path[0] == ?/
+          path, query = path.split('?', 2)
           @path = path
           env = {}
 
           if method == :get
-            env["QUERY_STRING"] = data
+            env["QUERY_STRING"] = query || data
             data = nil
           end
 
