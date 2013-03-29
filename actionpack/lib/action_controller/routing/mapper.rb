@@ -1,11 +1,13 @@
-require 'erb'
 require 'active_support/core_ext/hash/except'
 require 'active_support/core_ext/object/blank'
 require 'active_support/inflector'
+require 'action_controller/routing/redirection'
 
 module ActionController
   module Routing
     class Mapper
+      URL_OPTIONS = [:protocol, :subdomain, :domain, :host, :port]
+
       class Constraints #:nodoc:
         def self.new(app, constraints, request = Rack::Request)
           if constraints.any?
@@ -15,7 +17,7 @@ module ActionController
           end
         end
 
-        attr_reader :app
+        attr_reader :app, :constraints
 
         def initialize(app, constraints, request)
           @app, @constraints, @request = app, constraints, request
@@ -46,100 +48,157 @@ module ActionController
       end
 
       class Mapping #:nodoc:
-        IGNORE_OPTIONS = [:to, :as, :via, :on, :constraints, :defaults, :only, :except, :anchor, :shallow, :shallow_path, :shallow_prefix]
+        IGNORE_OPTIONS = [:to, :as, :via, :on, :constraints, :defaults, :only, :except, :anchor, :shallow, :shallow_path, :shallow_prefix, :format]
+        ANCHOR_CHARACTERS_REGEX = %r{\A(\\A|\^)|(\\Z|\\z|\$)\Z}
+        WILDCARD_PATH = %r{\*([^/\)]+)\)?$}
+
+        attr_reader :scope, :path, :options, :requirements, :conditions, :defaults
 
         def initialize(set, scope, path, options)
-          @set, @scope = set, scope
-          @options = (@scope[:options] || {}).merge(options)
-          @path = normalize_path(path)
+          @set, @scope, @path, @options = set, scope, path, options
+          @requirements, @conditions, @defaults = {}, {}, {}
+
+          normalize_path!
           normalize_options!
+          normalize_requirements!
+          normalize_conditions!
+          normalize_defaults!
         end
 
         def to_route
-          [ app, conditions, requirements, defaults, @options[:as], @options[:anchor] ]
+          [ app, conditions, requirements, defaults, options[:as], options[:anchor] ]
         end
 
         private
 
+          def normalize_path!
+            raise ArgumentError, "path is required" if @path.blank?
+            @path = Mapper.normalize_path(@path)
+
+            if required_format?
+              @path = "#{@path}.:format"
+            elsif optional_format?
+              @path = "#{@path}(.:format)"
+            end
+          end
+
+          def required_format?
+            options[:format] == true
+          end
+
+          def optional_format?
+            options[:format] != false && !path.include?(':format') && !path.end_with?('/')
+          end
+
           def normalize_options!
-            path_without_format = @path.sub(/\(\.:format\)$/, '')
+            @options.reverse_merge!(scope[:options]) if scope[:options]
+            path_without_format = path.sub(/\(\.:format\)$/, '')
 
-            if using_match_shorthand?(path_without_format, @options)
-              to_shorthand    = @options[:to].blank?
-              @options[:to] ||= path_without_format[1..-1].sub(%r{/([^/]*)$}, '#\1')
+            # Add a constraint for wildcard route to make it non-greedy and match the
+            # optional format part of the route by default
+            if path_without_format.match(WILDCARD_PATH) && @options[:format] != false
+              @options[$1.to_sym] ||= /.+?/
             end
 
-            @options.merge!(default_controller_and_action(to_shorthand))
-
-            requirements.each do |name, requirement|
-              # segment_keys.include?(k.to_s) || k == :controller
-              next unless Regexp === requirement && !constraints[name]
-
-              if requirement.source =~ %r{\A(\\A|\^)|(\\Z|\\z|\$)\Z}
-                raise ArgumentError, "Regexp anchor characters are not allowed in routing requirements: #{requirement.inspect}"
-              end
-              if requirement.multiline?
-                raise ArgumentError, "Regexp multiline option not allowed in routing requirements: #{requirement.inspect}"
-              end
-            end
-          end
-
-          # match "account/overview"
-          def using_match_shorthand?(path, options)
-            path && options.except(:via, :anchor, :to, :as).empty? && path =~ %r{^/[\w\/]+$}
-          end
-
-          def normalize_path(path)
-            raise ArgumentError, "path is required" if path.blank?
-            path = Mapper.normalize_path(path)
-
-            if path.match(':controller')
-              raise ArgumentError, ":controller segment is not allowed within a namespace block" if @scope[:module]
+            if path_without_format.match(':controller')
+              raise ArgumentError, ":controller segment is not allowed within a namespace block" if scope[:module]
 
               # Add a default constraint for :controller path segments that matches namespaced
               # controllers with default routes like :controller/:action/:id(.:format), e.g:
               # GET /admin/products/show/1
-              # => { :controller => 'admin/products', :action => 'show', :id => '1' }
-              @options.reverse_merge!(:controller => /.+?/)
+              # => { controller: 'admin/products', action: 'show', id: '1' }
+              @options[:controller] ||= /.+?/
             end
 
-            if @options[:format] == false
-              @options.delete(:format)
-              path
-            elsif path.include?(":format") || path.match(/\*[^\/]+$/)
-              path
-            else
-              "#{path}(.:format)"
+            @options.merge!(default_controller_and_action)
+          end
+
+          def normalize_requirements!
+            constraints.each do |key, requirement|
+              next unless segment_keys.include?(key) || key == :controller
+              verify_regexp_requirement(requirement) if requirement.is_a?(Regexp)
+              @requirements[key] = requirement
+            end
+
+            if options[:format] == true
+              @requirements[:format] ||= /.+/
+            elsif Regexp === options[:format]
+              @requirements[:format] = options[:format]
+            elsif String === options[:format]
+              @requirements[:format] = Regexp.compile(options[:format])
+            end
+          end
+
+          def verify_regexp_requirement(requirement)
+            if requirement.source =~ ANCHOR_CHARACTERS_REGEX
+              raise ArgumentError, "Regexp anchor characters are not allowed in routing requirements: #{requirement.inspect}"
+            end
+
+            if requirement.multiline?
+              raise ArgumentError, "Regexp multiline option is not allowed in routing requirements: #{requirement.inspect}"
+            end
+          end
+
+          def normalize_defaults!
+            @defaults.merge!(scope[:defaults]) if scope[:defaults]
+            @defaults.merge!(options[:defaults]) if options[:defaults]
+
+            options.each do |key, default|
+              next if Regexp === default || IGNORE_OPTIONS.include?(key)
+              @defaults[key] = default
+            end
+
+            if options[:constraints].is_a?(Hash)
+              options[:constraints].each do |key, default|
+                next unless URL_OPTIONS.include?(key) && (String === default || Fixnum === default)
+                @defaults[key] ||= default
+              end
+            end
+
+            if Regexp === options[:format]
+              @defaults[:format] = nil
+            elsif String === options[:format]
+              @defaults[:format] = options[:format]
+            end
+          end
+
+          def normalize_conditions!
+            @conditions.merge!(:path_info => path)
+
+            constraints.each do |key, condition|
+              next if segment_keys.include?(key) || key == :controller
+              @conditions[key] = condition
+            end
+
+            @conditions[:required_defaults] = []
+            options.each do |key, required_default|
+              next if segment_keys.include?(key) || IGNORE_OPTIONS.include?(key)
+              next if Regexp === required_default
+              @conditions[:required_defaults] << key
+            end
+
+            via_all = options.delete(:via) if options[:via] == :all
+
+            if !via_all && options[:via].blank?
+              msg = "You should not use the `match` method in your router without specifying an HTTP method.\n" \
+                    "If you want to expose your action to both GET and POST, add `via: [:get, :post]` option.\n" \
+                    "If you want to expose your action to GET, use `get` in the router:\n" \
+                    "  Instead of: match \"controller#action\"\n" \
+                    "  Do: get \"controller#action\""
+              raise msg
+            end
+
+            if via = options[:via]
+              list = Array(via).map { |m| m.to_s.dasherize.upcase }
+              @conditions.merge!(:request_method => list)
             end
           end
 
           def app
-            Constraints.new(
-              to.respond_to?(:call) ? to : Routing::RouteSet::Dispatcher.new(:defaults => defaults),
-              blocks,
-              @set.request_class
-            )
+            Constraints.new(endpoint, blocks, @set.request_class)
           end
 
-          def conditions
-            { :path_info => @path }.merge(constraints).merge(request_method_condition)
-          end
-
-          def requirements
-            @requirements ||= (@options[:constraints].is_a?(Hash) ? @options[:constraints] : {}).tap do |requirements|
-              requirements.reverse_merge!(@scope[:constraints]) if @scope[:constraints]
-              @options.each { |k, v| requirements[k] = v if v.is_a?(Regexp) }
-            end
-          end
-
-          def defaults
-            @defaults ||= (@options[:defaults] || {}).tap do |defaults|
-              defaults.reverse_merge!(@scope[:defaults]) if @scope[:defaults]
-              @options.each { |k, v| defaults[k] = v unless v.is_a?(Regexp) || IGNORE_OPTIONS.include?(k.to_sym) }
-            end
-          end
-
-          def default_controller_and_action(to_shorthand=nil)
+          def default_controller_and_action
             if to.respond_to?(:call)
               { }
             else
@@ -152,7 +211,7 @@ module ActionController
               controller ||= default_controller
               action     ||= default_action
 
-              unless controller.is_a?(Regexp) || to_shorthand
+              unless controller.is_a?(Regexp)
                 controller = [@scope[:module], controller].compact.join("/").presence
               end
 
@@ -163,68 +222,77 @@ module ActionController
               controller = controller.to_s unless controller.is_a?(Regexp)
               action     = action.to_s     unless action.is_a?(Regexp)
 
-              if controller.blank? && segment_keys.exclude?("controller")
+              if controller.blank? && segment_keys.exclude?(:controller)
                 raise ArgumentError, "missing :controller"
               end
 
-              if action.blank? && segment_keys.exclude?("action")
+              if action.blank? && segment_keys.exclude?(:action)
                 raise ArgumentError, "missing :action"
               end
 
-              { :controller => controller, :action => action }.tap do |hash|
-                hash.delete(:controller) if hash[:controller].blank?
-                hash.delete(:action)     if hash[:action].blank?
+              if controller.is_a?(String) && controller !~ /\A[a-z_0-9\/]*\z/
+                message = "'#{controller}' is not a supported controller name. This can lead to potential routing problems."
+                message << " See http://guides.rubyonrails.org/routing.html#specifying-a-controller-to-use"
+                raise ArgumentError, message
               end
+
+              hash = {}
+              hash[:controller] = controller unless controller.blank?
+              hash[:action]     = action unless action.blank?
+              hash
             end
           end
 
           def blocks
-            if @options[:constraints].present? && !@options[:constraints].is_a?(Hash)
-              block = @options[:constraints]
+            if options[:constraints].present? && !options[:constraints].is_a?(Hash)
+              [options[:constraints]]
             else
-              block = nil
+              scope[:blocks] || []
             end
-
-            ((@scope[:blocks] || []) + [ block ]).compact
           end
 
           def constraints
-            @constraints ||= requirements.reject { |k, v| segment_keys.include?(k.to_s) || k == :controller }
-          end
+            @constraints ||= {}.tap do |constraints|
+              constraints.merge!(scope[:constraints]) if scope[:constraints]
 
-          def request_method_condition
-            if via = @options[:via]
-              via = Array(via).map { |m| m.to_s.dasherize.upcase }
-              { :request_method_string => %r[^#{via.join('|')}$] }
-            else
-              { }
+              options.except(*IGNORE_OPTIONS).each do |key, option|
+                constraints[key] = option if Regexp === option
+              end
+
+              constraints.merge!(options[:constraints]) if options[:constraints].is_a?(Hash)
             end
           end
 
           def segment_keys
-            @segment_keys ||= Rack::Mount::RegexpWithNamedGroups.new(
-              Rack::Mount::Strexp.compile(@path, requirements, SEPARATORS)
-            ).names
+            @segment_keys ||= path_pattern.names.map{ |s| s.to_sym }
+          end
+
+          def path_pattern
+            Journey::Path::Pattern.new(strexp)
+          end
+
+          def strexp
+            Journey::Router::Strexp.compile(path, requirements, SEPARATORS)
+          end
+
+          def endpoint
+            to.respond_to?(:call) ? to : dispatcher
+          end
+
+          def dispatcher
+            Routing::RouteSet::Dispatcher.new(:defaults => defaults)
           end
 
           def to
-            @options[:to]
+            options[:to]
           end
 
           def default_controller
-            if @options[:controller]
-              @options[:controller]
-            elsif @scope[:controller]
-              @scope[:controller]
-            end
+            options[:controller] || scope[:controller]
           end
 
           def default_action
-            if @options[:action]
-              @options[:action]
-            elsif @scope[:action]
-              @scope[:action]
-            end
+            options[:action] || scope[:action]
           end
       end
 
@@ -232,20 +300,16 @@ module ActionController
       # (:locale) becomes (/:locale) instead of /(:locale). Except
       # for root cases, where the latter is the correct one.
       def self.normalize_path(path)
-        path = Rack::Mount::Utils.normalize_path(path)
-        path.gsub!(%r{/(\(+)/?}, '\1/') unless path =~ %r{^/\(+[^/]+\)$}
+        path = Journey::Router::Utils.normalize_path(path)
+        path.gsub!(%r{/(\(+)/?}, '\1/') unless path =~ %r{^/\(+[^)]+\)$}
         path
       end
 
       def self.normalize_name(name)
-        normalize_path(name)[1..-1].gsub("/", "_")
+        normalize_path(name)[1..-1].tr("/", "_")
       end
 
       module Base
-        def initialize(set) #:nodoc:
-          @set = set
-        end
-
         # You can specify what Rails should route "/" to with the root method:
         #
         #   root :to => 'pages#main'
@@ -256,7 +320,7 @@ module ActionController
         # because this means it will be matched first. As this is the most popular route
         # of most Rails applications, this is beneficial.
         def root(options = {})
-          match '/', options.reverse_merge(:as => :root)
+          match '/', { :as => :root, :via => :get }.merge!(options)
         end
 
         # When you set up a regular route, you supply a series of symbols that
@@ -269,9 +333,6 @@ module ActionController
         # action within that controller. Anything other than :controller or
         # :action will be available to the action as part of params.
         def match(path, options=nil)
-          mapping = Mapping.new(@set, @scope, path, options || {}).to_route
-          @set.add_route(*mapping)
-          self
         end
 
         # Mount a Rack-based application to be used within the application.
@@ -295,6 +356,10 @@ module ActionController
           if options
             path = options.delete(:at)
           else
+            unless Hash === app
+              raise ArgumentError, "must be called with mount point"
+            end
+
             options = app
             app, path = options.find { |k, v| k.respond_to?(:call) }
             options.delete(app) if app
@@ -302,7 +367,12 @@ module ActionController
 
           raise "A rack application must be specified" unless path
 
+          options[:as]  ||= app_name(app)
+          options[:via] ||= :all
+
           match(path, options.merge(:to => app, :anchor => false, :format => false))
+
+          define_generate_prefix(app, options[:as])
           self
         end
 
@@ -310,6 +380,44 @@ module ActionController
           @set.default_url_options = options
         end
         alias_method :default_url_options, :default_url_options=
+
+        def with_default_scope(scope, &block)
+          scope(scope) do
+            instance_exec(&block)
+          end
+        end
+
+        private
+          def app_name(app)
+            return unless app.respond_to?(:routes)
+
+            if app.respond_to?(:railtie_name)
+              app.railtie_name
+            else
+              class_name = app.class.is_a?(Class) ? app.name : app.class.name
+              ActiveSupport::Inflector.underscore(class_name).tr("/", "_")
+            end
+          end
+
+          def define_generate_prefix(app, name)
+            return unless app.respond_to?(:routes) && app.routes.respond_to?(:define_mounted_helper)
+
+            _route = @set.named_routes.routes[name.to_sym]
+            _routes = @set
+            app.routes.define_mounted_helper(name)
+            app.routes.singleton_class.class_eval do
+              define_method :mounted? do
+                true
+              end
+
+              define_method :_generate_prefix do |options|
+                prefix_options = options.slice(*_route.segment_keys)
+                # we must actually delete prefix segment keys to avoid passing them to next url_for
+                _route.segment_keys.each { |k| options.delete(k) }
+                _routes.url_helpers.send("#{name}_path", prefix_options)
+              end
+            end
+          end
       end
 
       module HttpHelpers
@@ -320,7 +428,7 @@ module ActionController
         #
         # get 'bacon', :to => 'food#bacon'
         def get(*args, &block)
-          map_method(:get, *args, &block)
+          map_method(:get, args, &block)
         end
 
         # Define a route that only recognizes HTTP POST.
@@ -330,7 +438,7 @@ module ActionController
         #
         # post 'bacon', :to => 'food#bacon'
         def post(*args, &block)
-          map_method(:post, *args, &block)
+          map_method(:post, args, &block)
         end
 
         # Define a route that only recognizes HTTP PUT.
@@ -340,7 +448,7 @@ module ActionController
         #
         # put 'bacon', :to => 'food#bacon'
         def put(*args, &block)
-          map_method(:put, *args, &block)
+          map_method(:put, args, &block)
         end
 
         # Define a route that only recognizes HTTP PUT.
@@ -350,46 +458,14 @@ module ActionController
         #
         # delete 'broccoli', :to => 'food#broccoli'
         def delete(*args, &block)
-          map_method(:delete, *args, &block)
-        end
-
-        # Redirect any path to another path:
-        #
-        #   match "/stories" => redirect("/posts")
-        def redirect(*args, &block)
-          options = args.last.is_a?(Hash) ? args.pop : {}
-
-          path      = args.shift || block
-          path_proc = path.is_a?(Proc) ? path : proc { |params| path % params }
-          status    = options[:status] || 301
-
-          lambda do |env|
-            req = Request.new(env)
-
-            params = [req.symbolized_path_parameters]
-            params << req if path_proc.arity > 1
-
-            uri = URI.parse(path_proc.call(*params))
-            uri.scheme ||= req.scheme
-            uri.host   ||= req.host
-            uri.port   ||= req.port unless req.standard_port?
-
-            body = %(<html><body>You are being <a href="#{ERB::Util.h(uri.to_s)}">redirected</a>.</body></html>)
-
-            headers = {
-              'Location' => uri.to_s,
-              'Content-Type' => 'text/html',
-              'Content-Length' => body.length.to_s
-            }
-
-            [ status, headers, [body] ]
-          end
+          map_method(:delete, args, &block)
         end
 
         private
           def map_method(method, *args, &block)
             options = args.extract_options!
-            options[:via] = method
+            options[:via]    = method
+            options[:path] ||= args.first if args.first.is_a?(String)
             args.push(options)
             match(*args, &block)
             self
@@ -451,11 +527,6 @@ module ActionController
       #   PUT	    /admin/photos/1
       #   DELETE  /admin/photos/1
       module Scoping
-        def initialize(*args) #:nodoc:
-          @scope = {}
-          super
-        end
-
         # Used to scope a set of routes to particular constraints.
         #
         # Take the following route definition as an example:
@@ -515,18 +586,18 @@ module ActionController
         #     comment          DELETE /sekret/comments/:id(.:format)
         def scope(*args)
           options = args.extract_options!
-          options = options.dup
-
-          if name_prefix = options.delete(:name_prefix)
-            options[:as] ||= name_prefix
-            ActiveSupport::Deprecation.warn ":name_prefix was deprecated in the new router syntax. Use :as instead.", caller
-          end
-
-          options[:path] = args.first if args.first.is_a?(String)
           recover = {}
 
+          options[:path] = args.flatten.join('/') if args.any?
           options[:constraints] ||= {}
-          unless options[:constraints].is_a?(Hash)
+
+          if options[:constraints].is_a?(Hash)
+            defaults = options[:constraints].select do
+              |k, v| URL_OPTIONS.include?(k) && (v.is_a?(String) || v.is_a?(Fixnum))
+            end
+
+            (options[:defaults] ||= {}).reverse_merge!(defaults)
+          else
             block, options[:constraints] = options[:constraints], {}
           end
 
@@ -537,8 +608,8 @@ module ActionController
             end
           end
 
-          recover[:block] = @scope[:blocks]
-          @scope[:blocks] = merge_blocks_scope(@scope[:blocks], block)
+          recover[:blocks] = @scope[:blocks]
+          @scope[:blocks]  = merge_blocks_scope(@scope[:blocks], block)
 
           recover[:options] = @scope[:options]
           @scope[:options]  = merge_options_scope(@scope[:options], options)
@@ -623,7 +694,7 @@ module ActionController
                       :shallow_path => path, :shallow_prefix => path }.merge!(options)
           scope(options) { yield }
         end
-        
+
         # === Parameter Restriction
         # Allows you to constrain the nested routes based on a set of rules.
         # For instance, in order to change the routes to allow for a dot character in the +id+ parameter:
@@ -794,24 +865,23 @@ module ActionController
         # CANONICAL_ACTIONS holds all actions that does not need a prefix or
         # a path appended since they fit properly in their scope level.
         VALID_ON_OPTIONS  = [:new, :collection, :member]
-        RESOURCE_OPTIONS  = [:as, :controller, :path, :only, :except]
+        RESOURCE_OPTIONS  = [:as, :controller, :path, :only, :except, :param, :concerns]
         CANONICAL_ACTIONS = %w(index create new show update destroy)
 
         class Resource #:nodoc:
-          DEFAULT_ACTIONS = [:index, :create, :new, :show, :update, :destroy, :edit]
-
-          attr_reader :controller, :path, :options
+          attr_reader :controller, :path, :options, :param
 
           def initialize(entities, options = {})
             @name       = entities.to_s
-            @path       = (options.delete(:path) || @name).to_s
-            @controller = (options.delete(:controller) || @name).to_s
-            @as         = options.delete(:as)
+            @path       = (options[:path] || @name).to_s
+            @controller = (options[:controller] || @name).to_s
+            @as         = options[:as]
+            @param      = (options[:param] || :id).to_sym
             @options    = options
           end
 
           def default_actions
-            self.class::DEFAULT_ACTIONS
+            [:index, :create, :new, :show, :update, :destroy, :edit]
           end
 
           def actions
@@ -850,28 +920,34 @@ module ActionController
           alias :collection_scope :path
 
           def member_scope
-            "#{path}/:id"
+            "#{path}/:#{param}"
           end
 
+          alias :shallow_scope :member_scope
           def new_scope(new_path)
             "#{path}/#{new_path}"
           end
 
+          def nested_param
+            :"#{singular}_#{param}"
+          end
+
           def nested_scope
-            "#{path}/:#{singular}_id"
+            "#{path}/:#{nested_param}"
           end
 
         end
 
         class SingletonResource < Resource #:nodoc:
-          DEFAULT_ACTIONS = [:show, :create, :update, :destroy, :new, :edit]
-
           def initialize(entities, options)
-            @name       = entities.to_s
-            @path       = (options.delete(:path) || @name).to_s
-            @controller = (options.delete(:controller) || plural).to_s
-            @as         = options.delete(:as)
-            @options    = options
+            super
+            @as         = nil
+            @controller = (options[:controller] || plural).to_s
+            @as         = options[:as]
+          end
+
+          def default_actions
+            [:show, :create, :update, :destroy, :new, :edit]
           end
 
           def plural
@@ -887,11 +963,6 @@ module ActionController
 
           alias :member_scope :path
           alias :nested_scope :path
-        end
-
-        def initialize(*args) #:nodoc:
-          super
-          @scope[:path_names] = @set.resources_path_names
         end
 
         def resources_path_names(options)
@@ -923,7 +994,7 @@ module ActionController
             return self
           end
 
-          resource_scope(SingletonResource.new(resources.pop, options)) do
+          resource_scope(:resource, SingletonResource.new(resources.pop, options)) do
             yield if block_given?
 
             collection do
@@ -934,12 +1005,7 @@ module ActionController
               get :new
             end if parent_resource.actions.include?(:new)
 
-            member do
-              get    :edit if parent_resource.actions.include?(:edit)
-              get    :show if parent_resource.actions.include?(:show)
-              put    :update if parent_resource.actions.include?(:update)
-              delete :destroy if parent_resource.actions.include?(:destroy)
-            end
+            set_member_mappings_for_resource
           end
 
           self
@@ -1007,7 +1073,7 @@ module ActionController
             return self
           end
 
-          resource_scope(Resource.new(resources.pop, options)) do
+          resource_scope(:resources, Resource.new(resources.pop, options)) do
             yield if block_given?
 
             collection do
@@ -1019,12 +1085,7 @@ module ActionController
               get :new
             end if parent_resource.actions.include?(:new)
 
-            member do
-              get    :edit if parent_resource.actions.include?(:edit)
-              get    :show if parent_resource.actions.include?(:show)
-              put    :update if parent_resource.actions.include?(:update)
-              delete :destroy if parent_resource.actions.include?(:destroy)
-            end
+            set_member_mappings_for_resource
           end
 
           self
@@ -1121,7 +1182,7 @@ module ActionController
         end
 
         def shallow
-          scope(:shallow => true) do
+          scope(:shallow => true, :shallow_path => @scope[:path]) do
             yield
           end
         end
@@ -1130,50 +1191,85 @@ module ActionController
           parent_resource.instance_of?(Resource) && @scope[:shallow]
         end
 
-        def match(*args)
-          options = args.extract_options!.dup
-          options[:anchor] = true unless options.key?(:anchor)
-
-          if args.length > 1
-            args.each { |path| match(path, options.dup) }
-            return self
+        # match 'path' => 'controller#action'
+        # match 'path', to: 'controller#action'
+        # match 'path', 'otherpath', on: :member, via: :get
+        def match(path, *rest)
+          if rest.empty? && Hash === path
+            options  = path
+            path, to = options.find { |name, value| name.is_a?(String) }
+            options[:to] = to
+            options.delete(path)
+            paths = [path]
+          else
+            options = rest.pop || {}
+            paths = [path] + rest
           end
 
-          on = options.delete(:on)
-          if VALID_ON_OPTIONS.include?(on)
-            args.push(options)
-            return send(on){ match(*args) }
-          elsif on
+          path_without_format = path.to_s.sub(/\(\.:format\)$/, '')
+          if using_match_shorthand?(path_without_format, options)
+            options[:to] ||= path_without_format.gsub(%r{^/}, "").sub(%r{/([^/]*)$}, '#\1')
+          end
+
+          options[:anchor] = true unless options.key?(:anchor)
+
+          if options[:on] && !VALID_ON_OPTIONS.include?(options[:on])
             raise ArgumentError, "Unknown scope #{on.inspect} given to :on"
           end
 
-          if @scope[:scope_level] == :resources
-            args.push(options)
-            return nested { match(*args) }
-          elsif @scope[:scope_level] == :resource
-            args.push(options)
-            return member { match(*args) }
+          paths.each { |_path| decomposed_match(_path, options.dup) }
+          self
+        end
+
+        def using_match_shorthand?(path, options)
+          path && (options[:to] || options[:action]).nil? && path =~ %r{/[\w/]+$}
+        end
+
+        def decomposed_match(path, options) # :nodoc:
+          if on = options.delete(:on)
+            send(on) { decomposed_match(path, options) }
+          else
+            case @scope[:scope_level]
+            when :resources
+              nested { decomposed_match(path, options) }
+            when :resource
+              member { decomposed_match(path, options) }
+            else
+              add_route(path, options)
+            end
           end
+        end
 
-          action = args.first
+        def add_route(action, options) # :nodoc:
           path = path_for_action(action, options.delete(:path))
+          action = action.to_s.dup
 
-          if action.to_s =~ /^[\w\/]+$/
-            options[:action] ||= action unless action.to_s.include?("/")
+          if action =~ /^[\w\/]+$/
+            options[:action] ||= action unless action.include?("/")
           else
             action = nil
           end
 
-          if options.key?(:as) && !options[:as]
+          if !options.fetch(:as, true)
             options.delete(:as)
           else
             options[:as] = name_for_action(options[:as], action)
           end
 
-          super(path, options)
+          mapping = Mapping.new(@set, @scope, URI.parser.escape(path), options)
+          app, conditions, requirements, defaults, as, anchor = mapping.to_route
+          @set.add_route(app, conditions, requirements, defaults, as, anchor)
         end
 
-        def root(options={})
+        def root(path, options={})
+          if path.is_a?(String)
+            options[:to] = path
+          elsif path.is_a?(Hash) and options.empty?
+            options = path
+          else
+            raise ArgumentError, "must be called with a path and/or options"
+          end
+
           if @scope[:scope_level] == :resources
             with_scope_level(:root) do
               scope(parent_resource.path) do
@@ -1226,7 +1322,7 @@ module ActionController
           end
 
           def scope_action_options?
-            @scope[:options].is_a?(Hash) && (@scope[:options][:only] || @scope[:options][:except])
+            @scope[:options] && (@scope[:options][:only] || @scope[:options][:except])
           end
 
           def scope_action_options
@@ -1234,7 +1330,7 @@ module ActionController
           end
 
           def resource_scope?
-            [:resource, :resources].include?(@scope[:scope_level])
+            [:resource, :resources].include? @scope[:scope_level]
           end
 
           def resource_method_scope?
@@ -1263,27 +1359,29 @@ module ActionController
             @scope[:scope_level_resource] = old_resource
           end
 
-          def resource_scope(resource)
-            with_scope_level(resource.is_a?(SingletonResource) ? :resource : :resources, resource) do
+          def resource_scope(kind, resource)
+            with_scope_level(kind, resource) do
               scope(parent_resource.resource_scope) do
                 yield
               end
             end
           end
 
-          def nested_options
-            {}.tap do |options|
-              options[:as] = parent_resource.member_name
-              options[:constraints] = { "#{parent_resource.singular}_id".to_sym => id_constraint } if id_constraint?
-            end
+          def nested_options #:nodoc:
+            options = { :as => parent_resource.member_name }
+            options[:constraints] = {
+              parent_resource.nested_param => param_constraint
+            } if param_constraint?
+
+            options
           end
 
           def id_constraint?
-            @scope[:constraints] && @scope[:constraints][:id].is_a?(Regexp)
+            @scope[:constraints] && @scope[:constraints][parent_resource.param].is_a?(Regexp)
           end
 
           def id_constraint
-            @scope[:constraints][:id]
+            @scope[:constraints][parent_resource.param]
           end
 
           def canonical_action?(action, flag)
@@ -1296,9 +1394,9 @@ module ActionController
 
           def path_for_action(action, path)
             prefix = shallow_scoping? ?
-              "#{@scope[:shallow_path]}/#{parent_resource.path}/:id" : @scope[:path]
+              "#{@scope[:shallow_path]}/#{parent_resource.shallow_scope}" : @scope[:path]
 
-            path = if canonical_action?(action, path.blank?)
+            if canonical_action?(action, path.blank?)
               prefix.to_s
             else
               "#{prefix}/#{action_path(action, path)}"
@@ -1306,7 +1404,8 @@ module ActionController
           end
 
           def action_path(name, path = nil)
-            path || @scope[:path_names][name.to_sym] || name.to_s
+            name = name.to_sym if name.is_a?(String)
+            path || @scope[:path_names][name] || name.to_s
           end
 
           def prefix_name_for_action(as, action)
@@ -1323,7 +1422,7 @@ module ActionController
             name_prefix = @scope[:as]
 
             if parent_resource
-              return nil if as.nil? && action.nil?
+              return nil unless as || action
 
               collection_name = parent_resource.collection_name
               member_name = parent_resource.member_name
@@ -1344,29 +1443,148 @@ module ActionController
               [name_prefix, member_name, prefix]
             end
 
-            candidate = name.select(&:present?).join("_").presence
-            candidate unless as.nil? && @set.routes.find { |r| r.name == candidate }
+            if candidate = name.select(&:present?).join("_").presence
+              # If a name was not explicitly given, we check if it is valid
+              # and return nil in case it isn't. Otherwise, we pass the invalid name
+              # forward so the underlying router engine treats it and raises an exception.
+              if as.nil?
+                candidate unless @set.routes.find { |r| r.name == candidate } || candidate !~ /\A[_a-z]/i
+              else
+                candidate
+              end
+            end
+          end
+
+          def set_member_mappings_for_resource
+            member do
+              get :edit if parent_resource.actions.include?(:edit)
+              get :show if parent_resource.actions.include?(:show)
+              if parent_resource.actions.include?(:update)
+                patch :update
+                put   :update
+              end
+              delete :destroy if parent_resource.actions.include?(:destroy)
+            end
           end
       end
 
-      module Shorthand
-        def match(*args)
-          if args.size == 1 && args.last.is_a?(Hash)
-            options  = args.pop
-            path, to = options.find { |name, value| name.is_a?(String) }
-            options.merge!(:to => to).delete(path)
-            super(path, options)
-          else
-            super
+      # Routing Concerns allow you to declare common routes that can be reused
+      # inside others resources and routes.
+      #
+      #   concern :commentable do
+      #     resources :comments
+      #   end
+      #
+      #   concern :image_attachable do
+      #     resources :images, only: :index
+      #   end
+      #
+      # These concerns are used in Resources routing:
+      #
+      #   resources :messages, concerns: [:commentable, :image_attachable]
+      #
+      # or in a scope or namespace:
+      #
+      #   namespace :posts do
+      #     concerns :commentable
+      #   end
+      module Concerns
+        # Define a routing concern using a name.
+        #
+        # Concerns may be defined inline, using a block, or handled by
+        # another object, by passing that object as the second parameter.
+        #
+        # The concern object, if supplied, should respond to <tt>call</tt>,
+        # which will receive two parameters:
+        #
+        #   * The current mapper
+        #   * A hash of options which the concern object may use
+        #
+        # Options may also be used by concerns defined in a block by accepting
+        # a block parameter. So, using a block, you might do something as
+        # simple as limit the actions available on certain resources, passing
+        # standard resource options through the concern:
+        #
+        #   concern :commentable do |options|
+        #     resources :comments, options
+        #   end
+        #
+        #   resources :posts, concerns: :commentable
+        #   resources :archived_posts do
+        #     # Don't allow comments on archived posts
+        #     concerns :commentable, only: [:index, :show]
+        #   end
+        #
+        # Or, using a callable object, you might implement something more
+        # specific to your application, which would be out of place in your
+        # routes file.
+        #
+        #   # purchasable.rb
+        #   class Purchasable
+        #     def initialize(defaults = {})
+        #       @defaults = defaults
+        #     end
+        #
+        #     def call(mapper, options = {})
+        #       options = @defaults.merge(options)
+        #       mapper.resources :purchases
+        #       mapper.resources :receipts
+        #       mapper.resources :returns if options[:returnable]
+        #     end
+        #   end
+        #
+        #   # routes.rb
+        #   concern :purchasable, Purchasable.new(returnable: true)
+        #
+        #   resources :toys, concerns: :purchasable
+        #   resources :electronics, concerns: :purchasable
+        #   resources :pets do
+        #     concerns :purchasable, returnable: false
+        #   end
+        #
+        # Any routing helpers can be used inside a concern. If using a
+        # callable, they're accessible from the Mapper that's passed to
+        # <tt>call</tt>.
+        def concern(name, callable = nil, &block)
+          callable ||= lambda { |mapper, options| mapper.instance_exec(options, &block) }
+          @concerns[name] = callable
+        end
+
+        # Use the named concerns
+        #
+        #   resources :posts do
+        #     concerns :commentable
+        #   end
+        #
+        # concerns also work in any routes helper that you want to use:
+        #
+        #   namespace :posts do
+        #     concerns :commentable
+        #   end
+        def concerns(*args)
+          options = args.extract_options!
+          args.flatten.each do |name|
+            if concern = @concerns[name]
+              concern.call(self, options)
+            else
+              raise ArgumentError, "No concern named #{name} was found!"
+            end
           end
         end
       end
 
+      def initialize(set) #:nodoc:
+        @set = set
+        @scope = { :path_names => @set.resources_path_names }
+        @concerns = {}
+      end
+
       include Base
       include HttpHelpers
+      include Redirection
       include Scoping
+      include Concerns
       include Resources
-      include Shorthand
     end
   end
 end

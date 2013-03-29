@@ -55,7 +55,7 @@ module ActionController
         RESERVED_OPTIONS.each { |k| options.delete(k) }
 
         # Generates the query string, too
-        Routing::Routes.generate(options, @request.symbolized_path_parameters)
+        Routing::Routes.url_for({:host => @request.host_with_port, :protocol => @request.protocol}.merge(options))
       end
 
       def rewrite_authentication(options)

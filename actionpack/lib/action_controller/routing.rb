@@ -267,18 +267,12 @@ module ActionController
   module Routing
     autoload :DeprecatedMapper, 'action_controller/routing/deprecated_mapper'
     autoload :Mapper, 'action_controller/routing/mapper'
-    autoload :Route, 'action_controller/routing/route'
     autoload :RouteSet, 'action_controller/routing/route_set'
     autoload :UrlFor, 'action_controller/routing/url_for'
     autoload :PolymorphicRoutes, 'action_controller/routing/polymorphic_routes'
 
     SEPARATORS = %w( / . ? ) #:nodoc:
-    HTTP_METHODS = [:get, :head, :post, :put, :delete, :options] #:nodoc:
-
-    # A helper module to hold URL related helpers.
-    module Helpers #:nodoc:
-      include PolymorphicRoutes
-    end
+    HTTP_METHODS = [:get, :head, :post, :patch, :put, :delete, :options] #:nodoc:
 
     Routes = RouteSet.new
 

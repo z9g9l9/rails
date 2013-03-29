@@ -92,14 +92,23 @@ module ActionController
           if respond_to?(:class_attribute)
             class_attribute :default_url_options
           else
-            mattr_accessor :default_url_options
-            remove_method :default_url_options
+            mattr_writer :default_url_options
           end
 
           self.default_url_options = {}
         end
+
+        include(*_url_for_modules) if respond_to?(:_url_for_modules)
       end
 
+      def initialize(*)
+        @_routes = nil
+        super
+      end
+
+      # Hook overridden in controller to add request information
+      # with `default_url_options`. Application logic should not
+      # go into url_options.
       def url_options
         default_url_options
       end
@@ -127,13 +136,33 @@ module ActionController
       #    url_for :controller => 'tasks', :action => 'testing', :host=>'somehost.org', :number => '33'  # => 'http://somehost.org/tasks/testing?number=33'
       def url_for(options = nil)
         case options
+        when nil
+          _routes.url_for(url_options.symbolize_keys)
+        when Hash
+          _routes.url_for(options.symbolize_keys.reverse_merge!(url_options))
         when String
           options
-        when nil, Hash
-          _routes.url_for((options || {}).reverse_merge(url_options).symbolize_keys)
         else
           polymorphic_url(options)
         end
+      end
+
+      protected
+
+      def optimize_routes_generation?
+        return @_optimized_routes if defined?(@_optimized_routes)
+        @_optimized_routes = _routes.optimize_routes_generation? && default_url_options.empty?
+      end
+
+      def _with_routes(routes)
+        old_routes, @_routes = @_routes, routes
+        yield
+      ensure
+        @_routes = old_routes
+      end
+
+      def _routes_context
+        self
       end
     end
   end

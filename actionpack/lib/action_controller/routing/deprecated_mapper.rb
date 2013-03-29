@@ -5,13 +5,11 @@ require 'active_support/core_ext/object/try'
 module ActionController
   module Routing
     class RouteSet
-      attr_accessor :controller_namespaces
-
       CONTROLLER_REGEXP = /[_a-zA-Z0-9]+/
 
       def controller_constraints
         @controller_constraints ||= begin
-          namespaces = controller_namespaces + in_memory_controller_namespaces
+          namespaces = in_memory_controller_namespaces
           source = namespaces.map { |ns| "#{Regexp.escape(ns)}/#{CONTROLLER_REGEXP.source}" }
           source << CONTROLLER_REGEXP.source
           Regexp.compile(source.sort.reverse.join('|'))
@@ -112,7 +110,7 @@ module ActionController
           path = path.gsub('.:format', '(.:format)')
           path = optionalize_trailing_dynamic_segments(path, requirements, defaults)
           glob = $1.to_sym if path =~ /\/\*(\w+)$/
-          path = ::Rack::Mount::Utils.normalize_path(path)
+          path = Journey::Router::Utils.normalize_path(path)
 
           if glob && !defaults[glob].blank?
             raise ActionController::RoutingError, "paths cannot have non-empty default values"

@@ -10,7 +10,7 @@ module ActionController
       super.reverse_merge(
         :host => request.host_with_port,
         :protocol => request.protocol,
-        :_path_segments => request.symbolized_path_parameters
+        :_recall => request.symbolized_path_parameters
       ).merge(:script_name => request.script_name)
     end
 
