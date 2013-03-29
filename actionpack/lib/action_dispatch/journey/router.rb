@@ -151,7 +151,7 @@ module ActionDispatch
             Route.new(r.name,
                       r.app,
                       r.path,
-                      r.conditions.merge(request_method: "HEAD"),
+                      r.conditions.merge(:request_method => "HEAD"),
                       r.defaults).tap do |route|
                         route.precedence = r.precedence + precedence
                       end

@@ -588,6 +588,10 @@ module ActionController
           options = args.extract_options!
           recover = {}
 
+          if name_prefix = options.delete(:name_prefix)
+            options[:as] ||= name_prefix
+          end
+
           options[:path] = args.flatten.join('/') if args.any?
           options[:constraints] ||= {}
 
