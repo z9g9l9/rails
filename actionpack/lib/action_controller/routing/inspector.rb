@@ -69,7 +69,7 @@ module ActionController
       end
 
       def internal?
-        controller =~ %r{\Arails/(info|welcome)} || path =~ %r{\A#{Rails.application.config.assets.prefix}}
+        controller =~ %r{\Arails/(info|welcome)}
       end
 
       def engine?

@@ -366,7 +366,7 @@ module ActionController
       def add_route(app, conditions = {}, requirements = {}, defaults = {}, name = nil, anchor = true)
         raise ArgumentError, "Invalid route name: '#{name}'" unless name.blank? || name.to_s.match(/^[_a-z]\w*$/i)
 
-        if name && named_routes[name] && false
+        if name && named_routes[name]
           raise ArgumentError, "Invalid route name, already in use: '#{name}' \n" \
             "You may have defined two routes with the same name using the `:as` option, or " \
             "you may be overriding a route already defined by a resource with the same naming. " \

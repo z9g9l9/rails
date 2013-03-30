@@ -19,6 +19,15 @@ module ActionView
         @controller.url_options
       end
 
+      def _routes_context
+        @controller
+      end
+
+      def optimize_routes_generation?
+        @controller.respond_to?(:optimize_routes_generation?, true) ?
+          @controller.optimize_routes_generation? : super
+      end
+
       # Returns the URL for the set of +options+ provided. This takes the
       # same options as +url_for+ in Action Controller (see the
       # documentation for ActionController::Base#url_for). Note that by default
@@ -77,20 +86,18 @@ module ActionView
       #   # if request.env["HTTP_REFERER"] is not set or is blank
       #   # => javascript:history.back()
       def url_for(options = {})
-        options ||= {}
-        url = case options
+        case options
         when String
           options
-        when Hash
-          options = options.symbolize_keys.reverse_merge!(:only_path => options[:host].nil?)
+        when nil, Hash
+          options ||= {}
+          options = { :only_path => options[:host].nil? }.merge!(options.symbolize_keys)
           super
         when :back
           @controller.request.env["HTTP_REFERER"] || 'javascript:history.back()'
         else
           polymorphic_path(options)
         end
-
-        url
       end
 
       # Creates a link tag of the given +name+ using a URL created by the set

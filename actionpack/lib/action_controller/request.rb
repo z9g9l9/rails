@@ -312,6 +312,10 @@ EOM
       end
     end
 
+    def standard_port?
+      port == standard_port
+    end
+
     # Returns a \port suffix like ":8080" if the \port number of this request
     # is not the default HTTP \port 80 or HTTPS \port 443.
     def port_string

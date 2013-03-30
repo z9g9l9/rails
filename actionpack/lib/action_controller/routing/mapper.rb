@@ -1,4 +1,5 @@
 require 'active_support/core_ext/hash/except'
+require 'active_support/core_ext/hash/slice'
 require 'active_support/core_ext/object/blank'
 require 'active_support/inflector'
 require 'action_controller/routing/redirection'
@@ -441,6 +442,14 @@ module ActionController
           map_method(:post, args, &block)
         end
 
+        # Define a route that only recognizes HTTP PATCH.
+        # For supported arguments, see match[rdoc-ref:Base#match]
+        #
+        #   patch 'bacon', to: 'food#bacon'
+        def patch(*args, &block)
+          map_method(:patch, args, &block)
+        end
+
         # Define a route that only recognizes HTTP PUT.
         # For supported arguments, see +match+.
         #
@@ -462,7 +471,7 @@ module ActionController
         end
 
         private
-          def map_method(method, *args, &block)
+          def map_method(method, args, &block)
             options = args.extract_options!
             options[:via]    = method
             options[:path] ||= args.first if args.first.is_a?(String)
@@ -1380,11 +1389,11 @@ module ActionController
             options
           end
 
-          def id_constraint?
+          def param_constraint?
             @scope[:constraints] && @scope[:constraints][parent_resource.param].is_a?(Regexp)
           end
 
-          def id_constraint
+          def param_constraint
             @scope[:constraints][parent_resource.param]
           end
 
