@@ -26,7 +26,7 @@ module ActionDispatch
           @env = env
         end
 
-        def request_method
+        def request_method_string
           env['REQUEST_METHOD']
         end
 
@@ -151,7 +151,7 @@ module ActionDispatch
             Route.new(r.name,
                       r.app,
                       r.path,
-                      r.conditions.merge(:request_method => "HEAD"),
+                      r.conditions.merge(:request_method_string => "HEAD"),
                       r.defaults).tap do |route|
                         route.precedence = r.precedence + precedence
                       end

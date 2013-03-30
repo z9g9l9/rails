@@ -419,9 +419,9 @@ module ActionController
         # :request_method represents the HTTP verb that matches this route.
         #
         # Here we munge values before they get sent on to rack-mount.
-        verbs = conditions[:request_method] || []
-        unless verbs.empty?
-          conditions[:request_method] = %r[^#{verbs.join('|')}$]
+        verbs = conditions[:request_method_string] || []
+        unless Regexp === verbs || verbs.empty?
+          conditions[:request_method_string] = %r[^#{Array(verbs).join('|')}$]
         end
 
         conditions.keep_if do |k, _|

@@ -191,7 +191,7 @@ module ActionController
 
             if via = options[:via]
               list = Array(via).map { |m| m.to_s.dasherize.upcase }
-              @conditions.merge!(:request_method => list)
+              @conditions.merge!(:request_method_string => list)
             end
           end
 

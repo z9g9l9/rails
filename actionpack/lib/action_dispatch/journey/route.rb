@@ -113,7 +113,7 @@ module ActionDispatch
       end
 
       def verb
-        constraints[:request_method] || //
+        constraints[:request_method_string] || //
       end
     end
   end
