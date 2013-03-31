@@ -90,12 +90,9 @@ module ActionController
 
         unless defined? @named_routes_configured
           # install the named routes in this session instance.
-          klass = class << self; self; end
-          Routing::Routes.install_helpers(klass)
-
-          # the helpers are made protected by default--we make them public for
-          # easier access during testing and troubleshooting.
-          klass.module_eval { public *Routing::Routes.named_routes.helpers }
+          class << self
+            include ActionController::Routing::Routes.url_helpers
+          end
           @named_routes_configured = true
         end
       end
