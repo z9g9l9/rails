@@ -55,9 +55,9 @@ module ActionDispatch
           end
 
           JSON.dump({
-            regexp_states: simple_regexp,
-            string_states: @string_states,
-            accepting:     @accepting
+            :regexp_states => simple_regexp,
+            :string_states => @string_states,
+            :accepting     => @accepting
           })
         end
 
