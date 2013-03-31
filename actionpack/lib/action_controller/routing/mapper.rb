@@ -601,7 +601,7 @@ module ActionController
           options[:constraints] ||= {}
 
           if options[:constraints].is_a?(Hash)
-            defaults = options[:constraints].select do
+            defaults = options[:constraints].dup.keep_if do
               |k, v| URL_OPTIONS.include?(k) && (v.is_a?(String) || v.is_a?(Fixnum))
             end
 
