@@ -1,7 +1,6 @@
 require 'stringio'
 require 'uri'
 require 'active_support/test_case'
-require 'action_controller/rack_lint_patch'
 
 module ActionController
   module Integration #:nodoc:
