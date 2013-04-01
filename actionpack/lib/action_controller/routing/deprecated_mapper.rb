@@ -69,7 +69,7 @@ module ActionController
         namespace  = options.delete(:namespace)
 
         name = options.delete(:_name)
-        name = "#{name_prefix}#{name}" if name_prefix
+        name = "#{name_prefix}#{name}" if name_prefix && name
 
         requirements = options.delete(:requirements) || {}
         defaults = options.delete(:defaults) || {}
