@@ -340,6 +340,10 @@ module ActionController
             @response = @controller.response
             @controller.send(:set_test_assigns)
           else
+            # Fake request for integration tests that never hit a controller ('/' => redirect('/abc'))
+            @request = ActionController::TestRequest.new
+            @request.host = host
+
             # Decorate responses from Rack Middleware and Rails Metal
             # as an Response for the purposes of integration testing
             @response = Response.new
