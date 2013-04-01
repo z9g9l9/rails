@@ -11,6 +11,7 @@ $-w = before
 require 'action_dispatch/journey/route'
 require 'action_dispatch/journey/path/pattern'
 require 'active_support/core_ext/array/sort_by'
+require 'active_support/core_ext/array/select'
 
 module ActionDispatch
   module Journey # :nodoc:
