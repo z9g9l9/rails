@@ -36,6 +36,7 @@ module ActionController #:nodoc:
       @env['RAW_POST_DATA'] ||= begin
         data = url_encoded_request_parameters
         data.force_encoding(Encoding::BINARY) if data.respond_to?(:force_encoding)
+        @env['CONTENT_LENGTH'] = data.bytesize.to_s
         data
       end
     end
