@@ -496,7 +496,7 @@ module ActionController #:nodoc:
       url, query_string = @routes.url_for(options).split("?", 2)
 
       @request.env["PATH_INFO"] = url
-      @request.env["QUERY_STRING"] = query_string || ""
+      @request.env["QUERY_STRING"] = (@request.get? && query_string) || ""
       @request.set_REQUEST_URI(nil)
       @request.request_uri # populate REQUEST_URI
     end
