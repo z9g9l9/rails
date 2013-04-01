@@ -99,6 +99,12 @@ module ActionController
         conditions[:path_info] = path if path
         conditions[:subdomain] = subdomain if subdomain
 
+        conditions[:required_defaults] = []
+        defaults.each do |key, required_default|
+          next if Regexp === required_default
+          conditions[:required_defaults] << key
+        end
+
         @set.add_route(app, conditions, requirements, defaults, name)
       end
 
