@@ -126,11 +126,11 @@ module ActionController
         end.collect do |route|
           collect_engine_routes(route)
 
-          { name:   route.name,
-            verb:   route.verb,
-            path:   route.path,
-            reqs:   route.reqs,
-            regexp: route.json_regexp }
+          { :name   => route.name,
+            :verb   => route.verb,
+            :path   => route.path,
+            :reqs   => route.reqs,
+            :regexp => route.json_regexp }
         end
       end
 
@@ -210,7 +210,7 @@ module ActionController
       end
 
       def section(routes)
-        @buffer << @view.render(partial: "routes/route", collection: routes)
+        @buffer << @view.render(:partial => "routes/route", :collection => routes)
       end
 
       # the header is part of the HTML page, so we don't construct it here.
@@ -231,7 +231,7 @@ module ActionController
       end
 
       def result
-        @view.raw @view.render(layout: "routes/table") {
+        @view.raw @view.render(:layout => "routes/table") {
           @view.raw @buffer.join("\n")
         }
       end
