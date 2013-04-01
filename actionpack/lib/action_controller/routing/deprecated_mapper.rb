@@ -4,29 +4,6 @@ require 'active_support/core_ext/object/try'
 
 module ActionController
   module Routing
-    class RouteSet
-      CONTROLLER_REGEXP = /[_a-zA-Z0-9]+/
-
-      def controller_constraints
-        @controller_constraints ||= begin
-          namespaces = in_memory_controller_namespaces
-          source = namespaces.map { |ns| "#{Regexp.escape(ns)}/#{CONTROLLER_REGEXP.source}" }
-          source << CONTROLLER_REGEXP.source
-          Regexp.compile(source.sort.reverse.join('|'))
-        end
-      end
-
-      def in_memory_controller_namespaces
-        namespaces = Set.new
-        ActionController::Base.descendants.each do |klass|
-          next if klass.anonymous?
-          namespaces << klass.name.underscore.split('/')[0...-1].join('/')
-        end
-        namespaces.delete('')
-        namespaces
-      end
-    end
-
     class DeprecatedMapper #:nodoc:
       def initialize(set) #:nodoc:
         # ActiveSupport::Deprecation.warn "You are using the old router DSL which will be removed in Rails 3.1. " <<
@@ -92,8 +69,6 @@ module ActionController
             raise ArgumentError, "Regexp multiline option not allowed in routing requirements: #{requirement.inspect}"
           end
         end
-
-        requirements[:controller] ||= @set.controller_constraints
 
         if defaults[:controller]
           defaults[:action] ||= 'index'
