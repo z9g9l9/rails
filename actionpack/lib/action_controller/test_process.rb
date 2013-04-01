@@ -485,6 +485,7 @@ module ActionController #:nodoc:
     end
 
     def build_request_uri(action, parameters)
+      @controller.request = @request
       options = @controller.respond_to?(:url_options) ? @controller.__send__(:url_options).merge(parameters) : parameters
       options.update(
         :only_path => true,
