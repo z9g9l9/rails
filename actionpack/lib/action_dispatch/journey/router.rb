@@ -16,9 +16,6 @@ require 'active_support/core_ext/array/select'
 module ActionDispatch
   module Journey # :nodoc:
     class Router # :nodoc:
-      class RoutingError < ::StandardError # :nodoc:
-      end
-
       # :nodoc:
       VERSION = '2.0.0'
 
@@ -80,7 +77,7 @@ module ActionDispatch
           return [status, headers, body]
         end
 
-        return [404, {'X-Cascade' => 'pass'}, ['Not Found']]
+        raise ActionController::RoutingError, "No route matches"
       end
 
       def recognize(req)
