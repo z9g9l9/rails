@@ -137,6 +137,10 @@ module ActionView
       STYLESHEETS_DIR = "#{ASSETS_DIR}/stylesheets"
       JAVASCRIPT_DEFAULT_SOURCES = ['prototype', 'effects', 'dragdrop', 'controls'].freeze unless const_defined?(:JAVASCRIPT_DEFAULT_SOURCES)
 
+      class << self
+        attr_accessor :rails_asset_id
+      end
+
       # Returns a link tag that browsers and news readers can use to auto-detect
       # an RSS or ATOM feed. The +type+ can either be <tt>:rss</tt> (default) or
       # <tt>:atom</tt>. Control the link options in url_for format using the
@@ -583,11 +587,10 @@ module ActionView
         @@asset_timestamps_cache = {}
         @@asset_timestamps_cache_guard = Mutex.new
 
-        # Use the RAILS_ASSET_ID environment variable or the source's
-        # modification time as its cache-busting asset id.
+        # Use modification time as its cache-busting asset id.
         def rails_asset_id(source)
-          if asset_id = ENV["RAILS_ASSET_ID"f]
-            asset_id
+          if ActionView::Helpers::AssetTagHelper.rails_asset_id
+            ActionView::Helpers::AssetTagHelper.rails_asset_id
           else
             if @@cache_asset_timestamps && (asset_id = @@asset_timestamps_cache[source])
               asset_id

@@ -43,7 +43,7 @@ class AssetTagHelperTest < ActionView::TestCase
   def teardown
     ActionController::Base.perform_caching = false
     ActionController::Base.asset_host = nil
-    ENV.delete('RAILS_ASSET_ID')
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = nil
   end
 
   AutoDiscoveryToTag = {
@@ -154,12 +154,12 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_javascript_include_tag_with_blank_asset_id
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     JavascriptIncludeToTag.each { |method, tag| assert_dom_equal(tag, eval(method)) }
   end
 
   def test_javascript_include_tag_with_given_asset_id
-    ENV["RAILS_ASSET_ID"] = "1"
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = "1"
     assert_dom_equal(%(<script src="/javascripts/prototype.js?1" type="text/javascript"></script>\n<script src="/javascripts/effects.js?1" type="text/javascript"></script>\n<script src="/javascripts/dragdrop.js?1" type="text/javascript"></script>\n<script src="/javascripts/controls.js?1" type="text/javascript"></script>\n<script src="/javascripts/application.js?1" type="text/javascript"></script>), javascript_include_tag(:defaults))
   end
 
@@ -169,13 +169,13 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_register_javascript_include_default
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionView::Helpers::AssetTagHelper::register_javascript_include_default 'slider'
     assert_dom_equal  %(<script src="/javascripts/prototype.js" type="text/javascript"></script>\n<script src="/javascripts/effects.js" type="text/javascript"></script>\n<script src="/javascripts/dragdrop.js" type="text/javascript"></script>\n<script src="/javascripts/controls.js" type="text/javascript"></script>\n<script src="/javascripts/slider.js" type="text/javascript"></script>\n<script src="/javascripts/application.js" type="text/javascript"></script>), javascript_include_tag(:defaults)
   end
 
   def test_register_javascript_include_default_mixed_defaults
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionView::Helpers::AssetTagHelper::register_javascript_include_default 'slider'
     ActionView::Helpers::AssetTagHelper::register_javascript_include_default 'lib1', '/elsewhere/blub/lib2'
     assert_dom_equal  %(<script src="/javascripts/prototype.js" type="text/javascript"></script>\n<script src="/javascripts/effects.js" type="text/javascript"></script>\n<script src="/javascripts/dragdrop.js" type="text/javascript"></script>\n<script src="/javascripts/controls.js" type="text/javascript"></script>\n<script src="/javascripts/slider.js" type="text/javascript"></script>\n<script src="/javascripts/lib1.js" type="text/javascript"></script>\n<script src="/elsewhere/blub/lib2.js" type="text/javascript"></script>\n<script src="/javascripts/application.js" type="text/javascript"></script>), javascript_include_tag(:defaults)
@@ -187,7 +187,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_custom_javascript_expansions_and_defaults_puts_application_js_at_the_end
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionView::Helpers::AssetTagHelper::register_javascript_expansion :monkey => ["head", "body", "tail"]
     assert_dom_equal  %(<script src="/javascripts/first.js" type="text/javascript"></script>\n<script src="/javascripts/prototype.js" type="text/javascript"></script>\n<script src="/javascripts/effects.js" type="text/javascript"></script>\n<script src="/javascripts/dragdrop.js" type="text/javascript"></script>\n<script src="/javascripts/controls.js" type="text/javascript"></script>\n<script src="/javascripts/head.js" type="text/javascript"></script>\n<script src="/javascripts/body.js" type="text/javascript"></script>\n<script src="/javascripts/tail.js" type="text/javascript"></script>\n<script src="/javascripts/last.js" type="text/javascript"></script>\n<script src="/javascripts/application.js" type="text/javascript"></script>), javascript_include_tag('first', :defaults, :monkey, 'last')
   end
@@ -206,12 +206,12 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_stylesheet_link_tag
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     StyleLinkToTag.each { |method, tag| assert_dom_equal(tag, eval(method)) }
   end
 
   def test_stylesheet_link_tag_is_html_safe
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     assert stylesheet_link_tag('dir/file').html_safe?
     assert stylesheet_link_tag('dir/other/file', 'dir/file2').html_safe?
     assert stylesheet_tag('dir/file', {}).html_safe?
@@ -242,7 +242,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_image_tag_windows_behaviour
-    old_asset_id, ENV["RAILS_ASSET_ID"] = ENV["RAILS_ASSET_ID"], "1"
+    old_asset_id, ActionView::Helpers::AssetTagHelper.rails_asset_id = ActionView::Helpers::AssetTagHelper.rails_asset_id, "1"
     # This simulates the behaviour of File#exist? on windows when testing a file ending in "."
     # If the file "rails.png" exists, windows will return true when asked if "rails.png." exists (notice trailing ".")
     # OS X, linux etc will return false in this case.
@@ -250,9 +250,9 @@ class AssetTagHelperTest < ActionView::TestCase
     assert_equal '<img alt="Rails" src="/images/rails.png?1" />', image_tag('rails.png')
   ensure
     if old_asset_id
-      ENV["RAILS_ASSET_ID"] = old_asset_id
+      ActionView::Helpers::AssetTagHelper.rails_asset_id = old_asset_id
     else
-      ENV.delete("RAILS_ASSET_ID")
+      ActionView::Helpers::AssetTagHelper.rails_asset_id = nil
     end
   end
 
@@ -274,12 +274,12 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_should_use_preset_asset_id
-    ENV["RAILS_ASSET_ID"] = "4500"
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = "4500"
     assert_equal %(<img alt="Rails" src="/images/rails.png?4500" />), image_tag("rails.png")
   end
 
   def test_preset_empty_asset_id
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     assert_equal %(<img alt="Rails" src="/images/rails.png" />), image_tag("rails.png")
   end
 
@@ -291,7 +291,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_image_path_with_caching_and_proc_asset_host_using_request
-    ENV['RAILS_ASSET_ID'] = ''
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ''
     ActionController::Base.asset_host = Proc.new do |source, request|
       if request.ssl?
         "#{request.protocol}#{request.host_with_port}"
@@ -311,7 +311,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_javascript_include_tag_when_caching_on
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.asset_host = 'http://a0.example.com'
     ActionController::Base.perform_caching = true
 
@@ -343,7 +343,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_javascript_include_tag_when_caching_on_with_proc_asset_host
-    ENV['RAILS_ASSET_ID'] = ''
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ''
     ActionController::Base.asset_host = Proc.new { |source| "http://a#{source.length}.example.com" }
     ActionController::Base.perform_caching = true
 
@@ -360,7 +360,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_javascript_include_tag_when_caching_on_with_2_argument_proc_asset_host
-    ENV['RAILS_ASSET_ID'] = ''
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ''
     ActionController::Base.asset_host = Proc.new { |source, request|
       if request.ssl?
         "#{request.protocol}#{request.host_with_port}"
@@ -397,7 +397,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_javascript_include_tag_when_caching_on_with_2_argument_object_asset_host
-    ENV['RAILS_ASSET_ID'] = ''
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ''
     ActionController::Base.asset_host = Class.new do
       def call(source, request)
         if request.ssl?
@@ -437,7 +437,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_javascript_include_tag_when_caching_on_and_using_subdirectory
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.asset_host = 'http://a%d.example.com'
     ActionController::Base.perform_caching = true
 
@@ -453,7 +453,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_javascript_include_tag_with_all_and_recursive_puts_defaults_at_the_start_of_the_file
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.asset_host = 'http://a0.example.com'
     ActionController::Base.perform_caching = true
 
@@ -474,7 +474,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_javascript_include_tag_with_all_puts_defaults_at_the_start_of_the_file
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.asset_host = 'http://a0.example.com'
     ActionController::Base.perform_caching = true
 
@@ -495,7 +495,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_javascript_include_tag_with_relative_url_root
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.relative_url_root = "/collaboration/hieraki"
     ActionController::Base.perform_caching = true
 
@@ -520,7 +520,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_javascript_include_tag_when_caching_off
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.perform_caching = false
 
     assert_dom_equal(
@@ -549,7 +549,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_stylesheet_link_tag_when_caching_on
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.asset_host = 'http://a0.example.com'
     ActionController::Base.perform_caching = true
 
@@ -581,7 +581,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_concat_stylesheet_link_tag_when_caching_off
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
 
     assert_dom_equal(
       %(<link href="/stylesheets/all.css" media="screen" rel="stylesheet" type="text/css" />),
@@ -611,7 +611,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_stylesheet_link_tag_when_caching_on_with_proc_asset_host
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.asset_host = Proc.new { |source| "http://a#{source.length}.example.com" }
     ActionController::Base.perform_caching = true
 
@@ -628,7 +628,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_stylesheet_link_tag_with_relative_url_root
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.relative_url_root = "/collaboration/hieraki"
     ActionController::Base.perform_caching = true
 
@@ -653,7 +653,7 @@ class AssetTagHelperTest < ActionView::TestCase
   end
 
   def test_caching_stylesheet_include_tag_when_caching_off
-    ENV["RAILS_ASSET_ID"] = ""
+    ActionView::Helpers::AssetTagHelper.rails_asset_id = ""
     ActionController::Base.perform_caching = false
 
     assert_dom_equal(
