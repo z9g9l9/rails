@@ -540,7 +540,7 @@ module ActionView
             source = rewrite_asset_path(source)
 
             if has_request && include_host
-              unless source =~ %r{^#{ActionController::Base.relative_url_root}/}
+              unless source =~ %r{^#{ActionController::Base.relative_url_root}/}o
                 source = "#{ActionController::Base.relative_url_root}#{source}"
               end
             end
