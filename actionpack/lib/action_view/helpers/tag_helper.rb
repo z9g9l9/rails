@@ -130,19 +130,20 @@ module ActionView
         end
 
         def tag_options(options, escape = true)
+          attrs = ""
           unless options.blank?
-            attrs = []
             options.each_pair do |key, value|
+              attrs << " "
               if BOOLEAN_ATTRIBUTES.include?(key)
-                attrs << %(#{key}="#{key}") if value
+                attrs << key << '="'f << key << '"'f if value
               elsif !value.nil?
                 final_value = value.is_a?(Array) ? value.join(" "f) : value
                 final_value = html_escape(final_value) if escape
-                attrs << %(#{key}="#{final_value}")
+                attrs << key << '="'f << final_value << '"'f
               end
             end
-            " #{attrs.sort * ' 'f}".html_safe unless attrs.empty?
           end
+          attrs.html_safe
         end
     end
   end
