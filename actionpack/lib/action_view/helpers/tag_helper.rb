@@ -136,12 +136,12 @@ module ActionView
               if BOOLEAN_ATTRIBUTES.include?(key)
                 attrs << %(#{key}="#{key}") if value
               elsif !value.nil?
-                final_value = value.is_a?(Array) ? value.join(" ") : value
+                final_value = value.is_a?(Array) ? value.join(" "f) : value
                 final_value = html_escape(final_value) if escape
                 attrs << %(#{key}="#{final_value}")
               end
             end
-            " #{attrs.sort * ' '}".html_safe unless attrs.empty?
+            " #{attrs.sort * ' 'f}".html_safe unless attrs.empty?
           end
         end
     end

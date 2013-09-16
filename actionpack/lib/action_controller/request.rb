@@ -268,7 +268,7 @@ EOM
 
     # Is this an SSL request?
     def ssl?
-      @env['HTTPS'] == 'on' || @env['HTTP_X_FORWARDED_PROTO'] == 'https'
+      @env['HTTPS'f] == 'on'f || @env['HTTP_X_FORWARDED_PROTO'f] == 'https'f
     end
 
     # Returns the \host for this request, such as "example.com".

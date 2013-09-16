@@ -182,7 +182,7 @@ module ActionView
       #   javascript_path "http://www.railsapplication.com/js/xmlhr" # => http://www.railsapplication.com/js/xmlhr.js
       #   javascript_path "http://www.railsapplication.com/js/xmlhr.js" # => http://www.railsapplication.com/js/xmlhr.js
       def javascript_path(source)
-        compute_public_path(source, 'javascripts', 'js')
+        compute_public_path(source, 'javascripts'f, 'js'f)
       end
       alias_method :path_to_javascript, :javascript_path # aliased to avoid conflicts with a javascript_path named route
 
@@ -586,7 +586,7 @@ module ActionView
         # Use the RAILS_ASSET_ID environment variable or the source's
         # modification time as its cache-busting asset id.
         def rails_asset_id(source)
-          if asset_id = ENV["RAILS_ASSET_ID"]
+          if asset_id = ENV["RAILS_ASSET_ID"f]
             asset_id
           else
             if @@cache_asset_timestamps && (asset_id = @@asset_timestamps_cache[source])
@@ -618,11 +618,11 @@ module ActionView
         end
 
         def javascript_src_tag(source, options)
-          content_tag("script", "", { "type" => Mime::JS, "src" => path_to_javascript(source) }.merge(options))
+          content_tag("script"f, ""f, { "type"f => Mime::JS, "src"f => path_to_javascript(source) }.merge(options))
         end
 
         def stylesheet_tag(source, options)
-          tag("link", { "rel" => "stylesheet", "type" => Mime::CSS, "media" => "screen", "href" => html_escape(path_to_stylesheet(source)) }.merge(options), false, false)
+          tag("link"f, { "rel"f => "stylesheet"f, "type"f => Mime::CSS, "media"f => "screen"f, "href"f => html_escape(path_to_stylesheet(source)) }.merge(options), false, false)
         end
 
         def compute_javascript_paths(*args)
