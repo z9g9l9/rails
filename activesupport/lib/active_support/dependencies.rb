@@ -1,4 +1,5 @@
-require 'thread'
+require "thread"
+require "set"
 
 module ActiveSupport #:nodoc:
   module Dependencies #:nodoc:
@@ -58,7 +59,7 @@ module ActiveSupport #:nodoc:
     # An array of qualified constant names that have been loaded. Adding a name to
     # this array will cause it to be unloaded the next time Dependencies are cleared.
     mattr_accessor :autoloaded_constants
-    self.autoloaded_constants = []
+    self.autoloaded_constants = Set.new
 
     # An array of constant names that need to be unloaded on every request. Used
     # to allow arbitrary constants to be marked for unloading.
@@ -384,7 +385,7 @@ module ActiveSupport #:nodoc:
       return nil unless base_path = autoloadable_module?(path_suffix)
       mod = Module.new
       into.const_set const_name, mod
-      autoloaded_constants << qualified_name unless autoload_once_paths.include?(base_path)
+      autoloaded_constants << qualified_name
       return mod
     end
 
@@ -406,8 +407,7 @@ module ActiveSupport #:nodoc:
         result = load_without_new_constant_marking path
       end
 
-      autoloaded_constants.concat newly_defined_paths unless load_once_path?(path)
-      autoloaded_constants.uniq!
+      autoloaded_constants.merge newly_defined_paths unless load_once_path?(path)
       log "loading #{path} defined #{newly_defined_paths * ', '}" unless newly_defined_paths.empty?
       return result
     end
