@@ -15,12 +15,6 @@ rescue Gem::LoadError
 end
 
 begin
-  gem 'tzinfo', '~> 0.3.12'
-rescue Gem::LoadError
-  $:.unshift "#{File.dirname(__FILE__)}/vendor/tzinfo-0.3.12"
-end
-
-begin
   gem 'i18n', '>= 0.4.1'
 rescue Gem::LoadError
   $:.unshift "#{File.dirname(__FILE__)}/vendor/i18n-0.4.1"

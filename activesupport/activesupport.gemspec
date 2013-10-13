@@ -9,4 +9,6 @@ Gem::Specification.new do |s|
   s.homepage = 'http://www.rubyonrails.org'
 
   s.require_path = 'lib'
+
+  s.add_dependency "tzinfo", "0.3.37"
 end
