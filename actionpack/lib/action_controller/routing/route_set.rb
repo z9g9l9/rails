@@ -197,6 +197,40 @@ module ActionController
               protected :#{selector}                                                        # protected :users_url
             end_eval
             helpers << selector
+
+            if kind == :path
+              define_fast_url_helper(selector, route, name)
+            end
+          end
+
+          def define_fast_url_helper(selector, route, name)
+            dynamic_segments = route.segments.grep(DynamicSegment)
+
+            return if dynamic_segments.any?(&:optional?) # TODO - maybe exclude optional format
+
+            helper_arguments = dynamic_segments.map { |route_argument|
+              "arg_#{route_argument.key}"
+            }
+
+            route_segments = route.segments.dup
+
+            if route_segments.size > 1 && route_segments.last.is_a?(DividerSegment) && route_segments.last.optional?
+              route_segments.pop
+            end
+
+            string_segments = route_segments.map { |segment|
+              if segment.is_a?(StaticSegment)
+                segment.value.inspect
+              else
+                '"#{URI::DEFAULT_PARSER.escape(arg_%s.to_s, ActionController::Routing::Segment::UNSAFE_PCHAR)}"' % segment.key
+              end
+            }
+
+            named_helper_module_eval <<-"RUBY"
+              def fast_#{selector}(#{helper_arguments.join(", ")})
+                #{string_segments.join(" ")}
+              end
+            RUBY
           end
       end
 
