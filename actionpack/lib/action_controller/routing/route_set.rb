@@ -138,8 +138,9 @@ module ActionController
             end
           end
 
-          def named_helper_module_eval(code, *args)
-            @module.module_eval(code, *args)
+          def named_helper_module_eval(code)
+            file, line = caller.first.split(":")
+            @module.module_eval(code, file, line.to_i + 1)
           end
 
           def define_hash_access(route, name, kind, options)
