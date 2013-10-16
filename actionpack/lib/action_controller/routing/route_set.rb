@@ -140,7 +140,11 @@ module ActionController
 
           def named_helper_module_eval(code)
             file, line = caller.first.split(":")
+            compile_option = RubyVM::InstructionSequence.compile_option
+            RubyVM::InstructionSequence.compile_option = compile_option.merge(:trace_instruction => false)
             @module.module_eval(code, file, line.to_i + 1)
+          ensure
+            RubyVM::InstructionSequence.compile_option = compile_option
           end
 
           def define_hash_access(route, name, kind, options)
