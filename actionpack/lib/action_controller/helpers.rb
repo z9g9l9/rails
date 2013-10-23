@@ -5,8 +5,8 @@ module ActionController #:nodoc:
   module Helpers #:nodoc:
     def self.included(base)
       # Initialize the base module to aggregate its helpers.
-      base.class_inheritable_accessor :master_helper_module
-      base.master_helper_module = Module.new
+      base.class_inheritable_accessor :master_helper_class
+      base.master_helper_class = Class.new(ActionView::Base)
 
       # Set the default directory for helpers
       base.class_inheritable_accessor :helpers_dir
@@ -69,27 +69,11 @@ module ActionController #:nodoc:
     #   N/A | Carolina Railhaws Training Workshop
     #
     module ClassMethods
-      # To avoid extending an instance of ActionView::Base with the master_helper_module
-      # every single time we render a view, we're caching a class that has
-      # master_helper_module already included that we can just instantiate.
-      def master_helper_class
-        return @master_helper_class if @master_helper_class
-
-        @master_helper_class = Class.new(ActionView::Base).tap do |klass|
-          klass.send(:include, master_helper_module)
-        end
-      end
-
-      def master_helper_module=(mod)
-        write_inheritable_attribute(:master_helper_module, mod)
-        @master_helper_class = nil
-      end
-
       # Makes all the (instance) methods in the helper module available to templates rendered through this controller.
       # See ActionView::Helpers (link:classes/ActionView/Helpers.html) for more about making your own helper modules
       # available to the templates.
       def add_template_helper(helper_module) #:nodoc:
-        master_helper_module.module_eval { include helper_module }
+        master_helper_class.class_eval { include helper_module }
       end
 
       # The +helper+ class method can take a series of helper module names, a block, or both.
@@ -157,7 +141,7 @@ module ActionController #:nodoc:
         end
 
         # Evaluate block in template class if given.
-        master_helper_module.module_eval(&block) if block_given?
+        master_helper_class.class_eval(&block) if block_given?
       end
 
       # Declare a controller method as a helper. For example, the following
@@ -178,7 +162,7 @@ module ActionController #:nodoc:
       #  <% if logged_in? -%>Welcome, <%= current_user.name %><% end -%>
       def helper_method(*methods)
         methods.flatten.each do |method|
-          master_helper_module.module_eval <<-end_eval
+          master_helper_class.class_eval <<-end_eval
             def #{method}(*args, &block)                    # def current_user(*args, &block)
               controller.send(%(#{method}), *args, &block)  #   controller.send(%(current_user), *args, &block)
             end                                             # end
@@ -222,8 +206,7 @@ module ActionController #:nodoc:
           inherited_without_helper(child)
 
           begin
-            child.master_helper_module = Module.new
-            child.master_helper_module.__send__ :include, master_helper_module
+            child.master_helper_class = Class.new(master_helper_class)
             child.__send__ :default_helper_module!
           rescue MissingSourceFile => e
             raise unless e.is_missing?("helpers/#{child.controller_path}_helper")

@@ -91,7 +91,7 @@ module ActionView
       def helper_method(*methods)
         # Almost a duplicate from ActionController::Helpers
         methods.flatten.each do |method|
-          master_helper_module.module_eval <<-end_eval
+          master_helper_class.class_eval <<-end_eval
             def #{method}(*args, &block)                    # def current_user(*args, &block)
               _test_case.send(%(#{method}), *args, &block)  #   test_case.send(%(current_user), *args, &block)
             end                                             # end
@@ -109,7 +109,7 @@ module ActionView
     private
       def make_test_case_available_to_view!
         test_case_instance = self
-        master_helper_module.module_eval do
+        master_helper_class.class_eval do
           define_method(:_test_case) { test_case_instance }
           private :_test_case
         end

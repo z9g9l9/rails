@@ -1034,6 +1034,10 @@ class RenderTest < ActionController::TestCase
       new Draggable(value, {});
       });
     }.gsub(/^      /, '').strip
+    if body != @response.body
+      puts "<<<<<<<\n#{body}\n=======\n#{@response.body}\n>>>>>>>>"
+      exit!
+    end
     assert_equal body, @response.body
   end
 
@@ -1113,7 +1117,7 @@ class RenderTest < ActionController::TestCase
 
   def test_should_implicitly_render_js_template_without_layout
     get :render_implicit_js_template_without_layout, :format => :js
-    assert_no_match /<html>/, @response.body
+    assert_no_match(/<html>/, @response.body)
   end
 
   def test_should_render_formatted_template

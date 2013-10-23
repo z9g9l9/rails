@@ -122,7 +122,7 @@ module ActionView
       test "named routes can be used from helper included in view" do
         with_routing do |set|
           set.draw { |map| map.resources :contents }
-          master_helper_module.module_eval do
+          master_helper_class.class_eval do
             def render_from_helper
               new_content_url
             end
@@ -146,7 +146,7 @@ module ActionView
       end
 
       test "is able to make methods available to the view" do
-        master_helper_module.module_eval do
+        master_helper_class.class_eval do
           def render_from_helper; from_test_case end
         end
         assert_equal 'Word!', render(:partial => 'test/from_helper')
