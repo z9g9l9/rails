@@ -12,30 +12,11 @@ export PATH=$ruby_dir:$PATH
 # Announce who we are
 ruby -v
 
-# Because Rails 2.3 doesn't use Bundler for its own tests,
-# we need to setup an isolated gem environment.
+export GEM_HOME="$(pwd)/.gem-$1"
+export GEM_PATH="$GEM_HOME:$GEM_PATH"
 
-gem_environment_version="$(md5sum Gemfile | cut -d' ' -f1)-$(ruby -e 'print RUBY_VERSION')"
-
-gem_dir=`pwd`/.gem
-gem_pristine_dir=${gem_dir}-${gem_environment_version}
-
-export GEM_HOME=$gem_dir
-export GEM_PATH=$gem_dir:$GEM_PATH
-export GEM_ROOT=$gem_dir
-
-rm -rf $gem_dir
-
-if [ ! -d $gem_pristine_dir ]; then
-  mkdir $gem_dir
-
-  gem install bundler
-  bundle install
-
-  mv $gem_dir $gem_pristine_dir
-fi
-
-cp -r $gem_pristine_dir $gem_dir
+gem install bundler
+bundle install
 
 # Go ham
 rake
