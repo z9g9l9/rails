@@ -1,13 +1,12 @@
 require 'abstract_unit'
 require 'active_support/xml_mini'
+require 'active_support/core_ext/hash/conversions'
 
 begin
-  gem 'nokogiri', '>= 1.1.1'
-rescue Gem::LoadError
+  require 'nokogiri'
+rescue LoadError
   # Skip nokogiri tests
 else
-
-require 'nokogiri'
 
 class NokogiriEngineTest < Test::Unit::TestCase
   include ActiveSupport
@@ -147,10 +146,23 @@ class NokogiriEngineTest < Test::Unit::TestCase
     eoxml
   end
 
+  def test_parse_from_io
+    io = StringIO.new(<<-eoxml)
+    <root>
+      good
+      <products>
+        hello everyone
+      </products>
+      morning
+    </root>
+    eoxml
+    XmlMini.parse(io)
+  end
+
   def test_children_with_simple_cdata
-     assert_equal_rexml(<<-eoxml)
-     <root>
-       <products>
+    assert_equal_rexml(<<-eoxml)
+    <root>
+      <products>
          <![CDATA[cdatablock]]>
       </products>
     </root>
@@ -173,10 +185,10 @@ class NokogiriEngineTest < Test::Unit::TestCase
       <products>
         hello <![CDATA[cdatablock]]>
         morning
-       </products>
-     </root>
-     eoxml
-   end
+      </products>
+    </root>
+    eoxml
+  end
 
   def test_children_with_blank_text
     assert_equal_rexml(<<-eoxml)

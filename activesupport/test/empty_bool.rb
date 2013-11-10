@@ -5,4 +5,3 @@ end
 class EmptyFalse
   def empty?() false; end
 end
-

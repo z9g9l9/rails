@@ -1,15 +1,18 @@
 require 'abstract_unit'
 
-class MemoizableTest < Test::Unit::TestCase
+class MemoizableTest < ActiveSupport::TestCase
   class Person
-    extend ActiveSupport::Memoizable
+    ActiveSupport::Deprecation.silence do
+      extend ActiveSupport::Memoizable
+    end
 
-    attr_reader :name_calls, :age_calls, :is_developer_calls
+    attr_reader :name_calls, :age_calls, :is_developer_calls, :name_query_calls
 
     def initialize
       @name_calls = 0
       @age_calls = 0
       @is_developer_calls = 0
+      @name_query_calls = 0
     end
 
     def name
@@ -18,6 +21,7 @@ class MemoizableTest < Test::Unit::TestCase
     end
 
     def name?
+      @name_query_calls += 1
       true
     end
     memoize :name?
@@ -63,7 +67,9 @@ class MemoizableTest < Test::Unit::TestCase
   end
 
   module Rates
-    extend ActiveSupport::Memoizable
+    ActiveSupport::Deprecation.silence do
+      extend ActiveSupport::Memoizable
+    end
 
     attr_reader :sales_tax_calls
     def sales_tax(price)
@@ -75,7 +81,9 @@ class MemoizableTest < Test::Unit::TestCase
   end
 
   class Calculator
-    extend ActiveSupport::Memoizable
+    ActiveSupport::Deprecation.silence do
+      extend ActiveSupport::Memoizable
+    end
     include Rates
 
     attr_reader :fib_calls
@@ -93,6 +101,15 @@ class MemoizableTest < Test::Unit::TestCase
       end
     end
     memoize :fib
+
+    def add_or_subtract(i, j, add)
+      if add
+        i + j
+      else
+        i - j
+      end
+    end
+    memoize :add_or_subtract
 
     def counter
       @count ||= 0
@@ -123,6 +140,13 @@ class MemoizableTest < Test::Unit::TestCase
     end
   end
 
+  def test_memoization_flush_with_punctuation
+    assert_equal true, @person.name?
+    @person.flush_cache(:name?)
+    3.times { assert_equal true, @person.name? }
+    assert_equal 2, @person.name_query_calls
+  end
+
   def test_memoization_with_nil_value
     assert_equal nil, @person.age
     assert_equal 1, @person.age_calls
@@ -131,13 +155,7 @@ class MemoizableTest < Test::Unit::TestCase
     assert_equal 1, @person.age_calls
   end
 
-  def test_memorized_results_are_immutable
-    assert_equal "Josh", @person.name
-    assert_raise(ActiveSupport::FrozenObjectError) { @person.name.gsub!("Josh", "Gosh") }
-  end
-
   def test_reloadable
-    counter = @calculator.counter
     assert_equal 1, @calculator.counter
     assert_equal 2, @calculator.counter(:reload)
     assert_equal 2, @calculator.counter
@@ -196,9 +214,16 @@ class MemoizableTest < Test::Unit::TestCase
     assert_equal 13, @calculator.fib_calls
   end
 
+  def test_memoization_with_boolean_arg
+    assert_equal 4, @calculator.add_or_subtract(2, 2, true)
+    assert_equal 2, @calculator.add_or_subtract(4, 2, false)
+  end
+
   def test_object_memoization
     [Company.new, Company.new, Company.new].each do |company|
-      company.extend ActiveSupport::Memoizable
+      ActiveSupport::Deprecation.silence do
+        company.extend ActiveSupport::Memoizable
+      end
       company.memoize :name
 
       assert_equal "37signals", company.name
@@ -232,11 +257,15 @@ class MemoizableTest < Test::Unit::TestCase
   def test_double_memoization
     assert_raise(RuntimeError) { Person.memoize :name }
     person = Person.new
-    person.extend ActiveSupport::Memoizable
+    ActiveSupport::Deprecation.silence do
+      person.extend ActiveSupport::Memoizable
+    end
     assert_raise(RuntimeError) { person.memoize :name }
 
     company = Company.new
-    company.extend ActiveSupport::Memoizable
+    ActiveSupport::Deprecation.silence do
+      company.extend ActiveSupport::Memoizable
+    end
     company.memoize :name
     assert_raise(RuntimeError) { company.memoize :name }
   end

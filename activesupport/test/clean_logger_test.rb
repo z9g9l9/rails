@@ -1,7 +1,11 @@
 require 'abstract_unit'
 require 'stringio'
+require 'active_support/core_ext/logger'
+require 'active_support/testing/deprecation'
 
 class CleanLoggerTest < Test::Unit::TestCase
+  include ActiveSupport::Testing::Deprecation
+
   def setup
     @out = StringIO.new
     @logger = Logger.new(@out)
@@ -13,34 +17,40 @@ class CleanLoggerTest < Test::Unit::TestCase
   end
 
   def test_silence
-    # Without yielding self.
-    @logger.silence do
-      @logger.debug  'debug'
-      @logger.info   'info'
-      @logger.warn   'warn'
-      @logger.error  'error'
-      @logger.fatal  'fatal'
+    assert_deprecated do
+      # Without yielding self.
+      @logger.silence do
+        @logger.debug  'debug'
+        @logger.info   'info'
+        @logger.warn   'warn'
+        @logger.error  'error'
+        @logger.fatal  'fatal'
+      end
     end
 
-    # Yielding self.
-    @logger.silence do |logger|
-      logger.debug  'debug'
-      logger.info   'info'
-      logger.warn   'warn'
-      logger.error  'error'
-      logger.fatal  'fatal'
+    assert_deprecated do
+      # Yielding self.
+      @logger.silence do |logger|
+        logger.debug  'debug'
+        logger.info   'info'
+        logger.warn   'warn'
+        logger.error  'error'
+        logger.fatal  'fatal'
+      end
     end
 
     # Silencer off.
     Logger.silencer = false
-    @logger.silence do |logger|
-      logger.warn   'unsilenced'
+    assert_deprecated do
+      @logger.silence do |logger|
+        logger.warn   'unsilenced'
+      end
     end
     Logger.silencer = true
 
     assert_equal "error\nfatal\nerror\nfatal\nunsilenced\n", @out.string
   end
-  
+
   def test_datetime_format
     @logger.formatter = Logger::Formatter.new
     @logger.datetime_format = "%Y-%m-%d"
@@ -48,7 +58,7 @@ class CleanLoggerTest < Test::Unit::TestCase
     assert_equal "%Y-%m-%d", @logger.datetime_format
     assert_match(/D, \[\d\d\d\d-\d\d-\d\d#\d+\] DEBUG -- : debug/, @out.string)
   end
-  
+
   def test_nonstring_formatting
     an_object = [1, 2, 3, 4, 5]
     @logger.debug an_object

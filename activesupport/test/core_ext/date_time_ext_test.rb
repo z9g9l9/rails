@@ -1,4 +1,5 @@
 require 'abstract_unit'
+require 'active_support/time'
 
 class DateTimeExtCalculationsTest < Test::Unit::TestCase
   def test_to_s
@@ -25,18 +26,25 @@ class DateTimeExtCalculationsTest < Test::Unit::TestCase
   end
 
   def test_to_date
-    assert_equal Date.new(2005, 2, 21), DateTime.new(2005, 2, 21).to_date
+    assert_equal Date.new(2005, 2, 21), DateTime.new(2005, 2, 21, 14, 30, 0).to_date
   end
 
   def test_to_datetime
-    assert_equal DateTime.new(2005, 2, 21), DateTime.new(2005, 2, 21).to_datetime
+    assert_equal DateTime.new(2005, 2, 21, 14, 30, 0), DateTime.new(2005, 2, 21, 14, 30, 0).to_datetime
   end
 
   def test_to_time
-    assert_equal Time.utc(2005, 2, 21, 10, 11, 12), DateTime.new(2005, 2, 21, 10, 11, 12, 0, 0).to_time
-    assert_equal Time.utc_time(2039, 2, 21, 10, 11, 12), DateTime.new(2039, 2, 21, 10, 11, 12, 0, 0).to_time
+    assert_equal Time.utc(2005, 2, 21, 10, 11, 12), DateTime.new(2005, 2, 21, 10, 11, 12, 0).to_time
+    assert_equal Time.utc_time(2039, 2, 21, 10, 11, 12), DateTime.new(2039, 2, 21, 10, 11, 12, 0).to_time
     # DateTimes with offsets other than 0 are returned unaltered
     assert_equal DateTime.new(2005, 2, 21, 10, 11, 12, Rational(-5, 24)), DateTime.new(2005, 2, 21, 10, 11, 12, Rational(-5, 24)).to_time
+    # Fractional seconds are preserved
+    assert_equal Time.utc(2005, 2, 21, 10, 11, 12, 256), DateTime.new(2005, 2, 21, 10, 11, 12 + Rational(256, 1000000), 0).to_time
+  end
+
+  def test_civil_from_format
+    assert_equal DateTime.civil(2010, 5, 4, 0, 0, 0, DateTime.local_offset), DateTime.civil_from_format(:local, 2010, 5, 4)
+    assert_equal DateTime.civil(2010, 5, 4, 0, 0, 0, 0), DateTime.civil_from_format(:utc, 2010, 5, 4)
   end
 
   def test_seconds_since_midnight
@@ -44,6 +52,24 @@ class DateTimeExtCalculationsTest < Test::Unit::TestCase
     assert_equal 60,DateTime.civil(2005,1,1,0,1,0).seconds_since_midnight
     assert_equal 3660,DateTime.civil(2005,1,1,1,1,0).seconds_since_midnight
     assert_equal 86399,DateTime.civil(2005,1,1,23,59,59).seconds_since_midnight
+  end
+
+  def test_days_to_week_start
+    assert_equal 0, Time.local(2011,11,01,0,0,0).days_to_week_start(:tuesday)
+    assert_equal 1, Time.local(2011,11,02,0,0,0).days_to_week_start(:tuesday)
+    assert_equal 2, Time.local(2011,11,03,0,0,0).days_to_week_start(:tuesday)
+    assert_equal 3, Time.local(2011,11,04,0,0,0).days_to_week_start(:tuesday)
+    assert_equal 4, Time.local(2011,11,05,0,0,0).days_to_week_start(:tuesday)
+    assert_equal 5, Time.local(2011,11,06,0,0,0).days_to_week_start(:tuesday)
+    assert_equal 6, Time.local(2011,11,07,0,0,0).days_to_week_start(:tuesday)
+
+    assert_equal 3, Time.local(2011,11,03,0,0,0).days_to_week_start(:monday)
+    assert_equal 3, Time.local(2011,11,04,0,0,0).days_to_week_start(:tuesday)
+    assert_equal 3, Time.local(2011,11,05,0,0,0).days_to_week_start(:wednesday)
+    assert_equal 3, Time.local(2011,11,06,0,0,0).days_to_week_start(:thursday)
+    assert_equal 3, Time.local(2011,11,07,0,0,0).days_to_week_start(:friday)
+    assert_equal 3, Time.local(2011,11,8,0,0,0).days_to_week_start(:saturday)
+    assert_equal 3, Time.local(2011,11,9,0,0,0).days_to_week_start(:sunday)
   end
 
   def test_beginning_of_week
@@ -65,6 +91,14 @@ class DateTimeExtCalculationsTest < Test::Unit::TestCase
     assert_equal DateTime.civil(2005,2,4,23,59,59), DateTime.civil(2005,2,4,10,10,10).end_of_day
   end
 
+  def test_beginning_of_hour
+    assert_equal DateTime.civil(2005,2,4,19,0,0), DateTime.civil(2005,2,4,19,30,10).beginning_of_hour
+  end
+
+  def test_end_of_hour
+    assert_equal DateTime.civil(2005,2,4,19,59,59), DateTime.civil(2005,2,4,19,30,10).end_of_hour
+  end
+
   def test_beginning_of_month
     assert_equal DateTime.civil(2005,2,1,0,0,0), DateTime.civil(2005,2,22,10,10,10).beginning_of_month
   end
@@ -84,6 +118,14 @@ class DateTimeExtCalculationsTest < Test::Unit::TestCase
 
   def test_beginning_of_year
     assert_equal DateTime.civil(2005,1,1,0,0,0), DateTime.civil(2005,2,22,10,10,10).beginning_of_year
+  end
+
+  def test_weeks_ago
+    assert_equal DateTime.civil(2005,5,29,10),  DateTime.civil(2005,6,5,10,0,0).weeks_ago(1)
+    assert_equal DateTime.civil(2005,5,1,10), DateTime.civil(2005,6,5,10,0,0).weeks_ago(5)
+    assert_equal DateTime.civil(2005,4,24,10), DateTime.civil(2005,6,5,10,0,0).weeks_ago(6)
+    assert_equal DateTime.civil(2005,2,27,10),  DateTime.civil(2005,6,5,10,0,0).weeks_ago(14)
+    assert_equal DateTime.civil(2004,12,25,10),  DateTime.civil(2005,1,1,10,0,0).weeks_ago(1)
   end
 
   def test_months_ago
@@ -165,22 +207,37 @@ class DateTimeExtCalculationsTest < Test::Unit::TestCase
   end
 
   def test_advance
-    assert_equal DateTime.civil(2006,2,28,15,15,10), DateTime.civil(2005,2,28,15,15,10).advance(:years => 1)
-    assert_equal DateTime.civil(2005,6,28,15,15,10), DateTime.civil(2005,2,28,15,15,10).advance(:months => 4)
-    assert_equal DateTime.civil(2005,3,21,15,15,10), DateTime.civil(2005,2,28,15,15,10).advance(:weeks => 3)
-    assert_equal DateTime.civil(2005,3,5,15,15,10), DateTime.civil(2005,2,28,15,15,10).advance(:days => 5)
-    assert_equal DateTime.civil(2012,9,28,15,15,10), DateTime.civil(2005,2,28,15,15,10).advance(:years => 7, :months => 7)
-    assert_equal DateTime.civil(2013,10,3,15,15,10), DateTime.civil(2005,2,28,15,15,10).advance(:years => 7, :months => 19, :days => 5)
+    assert_equal DateTime.civil(2006,2,28,15,15,10),  DateTime.civil(2005,2,28,15,15,10).advance(:years => 1)
+    assert_equal DateTime.civil(2005,6,28,15,15,10),  DateTime.civil(2005,2,28,15,15,10).advance(:months => 4)
+    assert_equal DateTime.civil(2005,3,21,15,15,10),  DateTime.civil(2005,2,28,15,15,10).advance(:weeks => 3)
+    assert_equal DateTime.civil(2005,3,5,15,15,10),   DateTime.civil(2005,2,28,15,15,10).advance(:days => 5)
+    assert_equal DateTime.civil(2012,9,28,15,15,10),  DateTime.civil(2005,2,28,15,15,10).advance(:years => 7, :months => 7)
+    assert_equal DateTime.civil(2013,10,3,15,15,10),  DateTime.civil(2005,2,28,15,15,10).advance(:years => 7, :months => 19, :days => 5)
     assert_equal DateTime.civil(2013,10,17,15,15,10), DateTime.civil(2005,2,28,15,15,10).advance(:years => 7, :months => 19, :weeks => 2, :days => 5)
     assert_equal DateTime.civil(2001,12,27,15,15,10), DateTime.civil(2005,2,28,15,15,10).advance(:years => -3, :months => -2, :days => -1)
-    assert_equal DateTime.civil(2005,2,28,15,15,10), DateTime.civil(2004,2,29,15,15,10).advance(:years => 1) #leap day plus one year
-    assert_equal DateTime.civil(2005,2,28,20,15,10), DateTime.civil(2005,2,28,15,15,10).advance(:hours => 5)
-    assert_equal DateTime.civil(2005,2,28,15,22,10), DateTime.civil(2005,2,28,15,15,10).advance(:minutes => 7)
-    assert_equal DateTime.civil(2005,2,28,15,15,19), DateTime.civil(2005,2,28,15,15,10).advance(:seconds => 9)
-    assert_equal DateTime.civil(2005,2,28,20,22,19), DateTime.civil(2005,2,28,15,15,10).advance(:hours => 5, :minutes => 7, :seconds => 9)
-    assert_equal DateTime.civil(2005,2,28,10,8,1), DateTime.civil(2005,2,28,15,15,10).advance(:hours => -5, :minutes => -7, :seconds => -9)
+    assert_equal DateTime.civil(2005,2,28,15,15,10),  DateTime.civil(2004,2,29,15,15,10).advance(:years => 1) #leap day plus one year
+    assert_equal DateTime.civil(2005,2,28,20,15,10),  DateTime.civil(2005,2,28,15,15,10).advance(:hours => 5)
+    assert_equal DateTime.civil(2005,2,28,15,22,10),  DateTime.civil(2005,2,28,15,15,10).advance(:minutes => 7)
+    assert_equal DateTime.civil(2005,2,28,15,15,19),  DateTime.civil(2005,2,28,15,15,10).advance(:seconds => 9)
+    assert_equal DateTime.civil(2005,2,28,20,22,19),  DateTime.civil(2005,2,28,15,15,10).advance(:hours => 5, :minutes => 7, :seconds => 9)
+    assert_equal DateTime.civil(2005,2,28,10,8,1),    DateTime.civil(2005,2,28,15,15,10).advance(:hours => -5, :minutes => -7, :seconds => -9)
     assert_equal DateTime.civil(2013,10,17,20,22,19), DateTime.civil(2005,2,28,15,15,10).advance(:years => 7, :months => 19, :weeks => 2, :days => 5, :hours => 5, :minutes => 7, :seconds => 9)
+  end
 
+  def test_advanced_processes_first_the_date_deltas_and_then_the_time_deltas
+    # If the time deltas were processed first, the following datetimes would be advanced to 2010/04/01 instead.
+    assert_equal DateTime.civil(2010, 3, 29), DateTime.civil(2010, 2, 28, 23, 59, 59).advance(:months => 1, :seconds => 1)
+    assert_equal DateTime.civil(2010, 3, 29), DateTime.civil(2010, 2, 28, 23, 59).advance(:months => 1, :minutes => 1)
+    assert_equal DateTime.civil(2010, 3, 29), DateTime.civil(2010, 2, 28, 23).advance(:months => 1, :hours => 1)
+    assert_equal DateTime.civil(2010, 3, 29), DateTime.civil(2010, 2, 28, 22, 58, 59).advance(:months => 1, :hours => 1, :minutes => 1, :seconds => 1)
+  end
+
+  def test_prev_week
+    assert_equal DateTime.civil(2005,2,21), DateTime.civil(2005,3,1,15,15,10).prev_week
+    assert_equal DateTime.civil(2005,2,22), DateTime.civil(2005,3,1,15,15,10).prev_week(:tuesday)
+    assert_equal DateTime.civil(2005,2,25), DateTime.civil(2005,3,1,15,15,10).prev_week(:friday)
+    assert_equal DateTime.civil(2006,10,30), DateTime.civil(2006,11,6,0,0,0).prev_week
+    assert_equal DateTime.civil(2006,11,15), DateTime.civil(2006,11,23,0,0,0).prev_week(:wednesday)
   end
 
   def test_next_week
@@ -229,7 +286,7 @@ class DateTimeExtCalculationsTest < Test::Unit::TestCase
     assert_equal false,  DateTime.civil(2005,2,10,15,30,45, Rational(-18000, 86400)).past?
     assert_equal false,  DateTime.civil(2005,2,10,15,30,46, Rational(-18000, 86400)).past?
   end
-  
+
   def test_past_without_offset
     DateTime.stubs(:current).returns(DateTime.civil(2005,2,10,15,30,45, Rational(-18000, 86400)))
     assert_equal true,  DateTime.civil(2005,2,10,20,30,44).past?
@@ -251,30 +308,30 @@ class DateTimeExtCalculationsTest < Test::Unit::TestCase
     assert_equal true,  DateTime.civil(2005,2,10,20,30,46).future?
   end
 
-  def test_current_returns_date_today_when_zone_default_not_set
+  def test_current_returns_date_today_when_zone_is_not_set
     with_env_tz 'US/Eastern' do
       Time.stubs(:now).returns Time.local(1999, 12, 31, 23, 59, 59)
       assert_equal DateTime.new(1999, 12, 31, 23, 59, 59, Rational(-18000, 86400)), DateTime.current
     end
   end
 
-  def test_current_returns_time_zone_today_when_zone_default_set
-    Time.zone_default = ActiveSupport::TimeZone['Eastern Time (US & Canada)']
+  def test_current_returns_time_zone_today_when_zone_is_set
+    Time.zone = ActiveSupport::TimeZone['Eastern Time (US & Canada)']
     with_env_tz 'US/Eastern' do
       Time.stubs(:now).returns Time.local(1999, 12, 31, 23, 59, 59)
       assert_equal DateTime.new(1999, 12, 31, 23, 59, 59, Rational(-18000, 86400)), DateTime.current
     end
   ensure
-    Time.zone_default = nil
+    Time.zone = nil
   end
 
   def test_current_without_time_zone
-    assert DateTime.current.is_a?(DateTime)
+    assert_kind_of DateTime, DateTime.current
   end
 
   def test_current_with_time_zone
     with_env_tz 'US/Eastern' do
-      assert DateTime.current.is_a?(DateTime)
+      assert_kind_of DateTime, DateTime.current
     end
   end
 

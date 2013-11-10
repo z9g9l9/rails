@@ -1,45 +1,30 @@
 require 'abstract_unit'
 require 'active_support/xml_mini'
+require 'active_support/core_ext/hash/conversions'
 
 begin
-  gem 'libxml-ruby'
-rescue Gem::LoadError
-  # Skip nokogiri tests
+  require 'libxml'
+rescue LoadError
+  # Skip libxml tests
 else
 
-require 'libxml'
-
-class NokogiriEngineTest < Test::Unit::TestCase
+class LibxmlEngineTest < Test::Unit::TestCase
   include ActiveSupport
 
   def setup
     @default_backend = XmlMini.backend
     XmlMini.backend = 'LibXML'
+
+    LibXML::XML::Error.set_handler(&lambda { |error| }) #silence libxml, exceptions will do
   end
 
   def teardown
     XmlMini.backend = @default_backend
   end
 
-  def test_file_from_xml
-    hash = Hash.from_xml(<<-eoxml)
-      <blog>
-        <logo type="file" name="logo.png" content_type="image/png">
-        </logo>
-      </blog>
-    eoxml
-    assert hash.has_key?('blog')
-    assert hash['blog'].has_key?('logo')
-
-    file = hash['blog']['logo']
-    assert_equal 'logo.png', file.original_filename
-    assert_equal 'image/png', file.content_type
-  end
-
   def test_exception_thrown_on_expansion_attack
     assert_raise LibXML::XML::Error do
-      attack_xml = <<-EOT
-      <?xml version="1.0" encoding="UTF-8"?>
+      attack_xml = %{<?xml version="1.0" encoding="UTF-8"?>
       <!DOCTYPE member [
         <!ENTITY a "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">
         <!ENTITY b "&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;">
@@ -52,12 +37,12 @@ class NokogiriEngineTest < Test::Unit::TestCase
       <member>
       &a;
       </member>
-      EOT
+     }
       Hash.from_xml(attack_xml)
     end
   end
 
-  def test_setting_nokogiri_as_backend
+  def test_setting_libxml_as_backend
     XmlMini.backend = 'LibXML'
     assert_equal XmlMini_LibXML, XmlMini.backend
   end
@@ -147,10 +132,23 @@ class NokogiriEngineTest < Test::Unit::TestCase
     eoxml
   end
 
+  def test_parse_from_io
+    io = StringIO.new(<<-eoxml)
+    <root>
+      good
+      <products>
+        hello everyone
+      </products>
+      morning
+    </root>
+    eoxml
+    XmlMini.parse(io)
+  end
+
   def test_children_with_simple_cdata
-     assert_equal_rexml(<<-eoxml)
-     <root>
-       <products>
+    assert_equal_rexml(<<-eoxml)
+    <root>
+      <products>
          <![CDATA[cdatablock]]>
       </products>
     </root>
@@ -173,10 +171,10 @@ class NokogiriEngineTest < Test::Unit::TestCase
       <products>
         hello <![CDATA[cdatablock]]>
         morning
-       </products>
-     </root>
-     eoxml
-   end
+      </products>
+    </root>
+    eoxml
+  end
 
   def test_children_with_blank_text
     assert_equal_rexml(<<-eoxml)
@@ -193,6 +191,7 @@ class NokogiriEngineTest < Test::Unit::TestCase
     </root>
     eoxml
   end
+
 
   private
   def assert_equal_rexml(xml)

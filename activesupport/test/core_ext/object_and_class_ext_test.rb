@@ -1,4 +1,7 @@
 require 'abstract_unit'
+require 'active_support/time'
+require 'active_support/core_ext/object'
+require 'active_support/core_ext/class/subclasses'
 
 class ClassA; end
 class ClassB < ClassA; end
@@ -25,121 +28,7 @@ module Nested
   end
 end
 
-module Bar
-  def bar; end
-end
-
-module Baz
-  def baz; end
-end
-
-class Foo
-  include Bar
-end
-
-class ClassExtTest < Test::Unit::TestCase
-  def test_methods
-    assert defined?(ClassB)
-    assert defined?(ClassC)
-    assert defined?(ClassD)
-
-    ClassA.remove_subclasses
-
-    assert !defined?(ClassB)
-    assert !defined?(ClassC)
-    assert !defined?(ClassD)
-  end
-
-  def test_subclasses_of
-    cj = ClassJ
-    assert_equal [ClassJ], Object.subclasses_of(ClassI)
-    ClassI.remove_subclasses
-    assert_equal [], Object.subclasses_of(ClassI)
-  ensure
-    Object.const_set :ClassJ, cj
-  end
-
-  def test_subclasses_of_should_find_nested_classes
-    assert Object.subclasses_of(ClassK).include?(Nested::ClassL)
-  end
-
-  def test_subclasses_of_should_not_return_removed_classes
-    # First create the removed class
-    old_class = Nested.class_eval { remove_const :ClassL }
-    new_class = Class.new(ClassK)
-    Nested.const_set :ClassL, new_class
-    assert_equal "Nested::ClassL", new_class.name # Sanity check
-
-    subclasses = Object.subclasses_of(ClassK)
-    assert subclasses.include?(new_class)
-    assert ! subclasses.include?(old_class)
-  ensure
-    Nested.const_set :ClassL, old_class unless defined?(Nested::ClassL)
-  end
-  
-  def test_subclasses_of_should_not_trigger_const_missing
-    const_missing = false
-    Nested.on_const_missing { const_missing = true }
-    
-    subclasses = Object.subclasses_of ClassK
-    assert !const_missing
-    assert_equal [ Nested::ClassL ], subclasses
-    
-    removed = Nested.class_eval { remove_const :ClassL }  # keep it in memory
-    subclasses = Object.subclasses_of ClassK
-    assert !const_missing
-    assert subclasses.empty?
-  ensure
-    Nested.const_set :ClassL, removed unless defined?(Nested::ClassL)
-  end
-  
-  def test_subclasses_of_with_multiple_roots
-    classes = Object.subclasses_of(ClassI, ClassK)
-    assert_equal %w(ClassJ Nested::ClassL), classes.collect(&:to_s).sort
-  end
-
-  def test_subclasses_of_doesnt_find_anonymous_classes
-    assert_equal [], Object.subclasses_of(Foo)
-    bar = Class.new(Foo)
-    assert_nothing_raised do
-      assert_equal [bar], Object.subclasses_of(Foo)
-    end
-  end
-end
-
 class ObjectTests < ActiveSupport::TestCase
-  def test_suppress_re_raises
-    assert_raise(LoadError) { suppress(ArgumentError) {raise LoadError} }
-  end
-  def test_suppress_supresses
-    suppress(ArgumentError) { raise ArgumentError }
-    suppress(LoadError) { raise LoadError }
-    suppress(LoadError, ArgumentError) { raise LoadError }
-    suppress(LoadError, ArgumentError) { raise ArgumentError }
-  end
-
-  def test_extended_by
-    foo = Foo.new
-    assert foo.extended_by.include?(Bar)
-    foo.extend(Baz)
-    assert(([Bar, Baz] - foo.extended_by).empty?, "Expected Bar, Baz in #{foo.extended_by.inspect}")
-  end
-
-  def test_extend_with_included_modules_from
-    foo, object = Foo.new, Object.new
-    assert !object.respond_to?(:bar)
-    assert !object.respond_to?(:baz)
-
-    object.extend_with_included_modules_from(foo)
-    assert object.respond_to?(:bar)
-    assert !object.respond_to?(:baz)
-
-    foo.extend(Baz)
-    object.extend_with_included_modules_from(foo)
-    assert object.respond_to?(:bar)
-    assert object.respond_to?(:baz)
-  end
-
   class DuckTime
     def acts_like_time?
       true
@@ -168,26 +57,6 @@ class ObjectTests < ActiveSupport::TestCase
     assert duck.acts_like?(:time)
     assert !duck.acts_like?(:date)
   end
-
-  def test_metaclass
-    string = "Hello"
-    string.singleton_class.instance_eval do
-      define_method(:foo) { "bar" }
-    end
-    assert_equal "bar", string.foo
-  end
-
-  def test_singleton_class
-    o = Object.new
-    assert_equal class << o; self end, o.singleton_class
-  end
-
-  def test_metaclass_deprecated
-    o = Object.new
-    assert_deprecated(/use singleton_class instead/) do
-      assert_equal o.singleton_class, o.metaclass
-    end
-   end
 end
 
 class ObjectInstanceVariableTest < Test::Unit::TestCase
@@ -199,44 +68,6 @@ class ObjectInstanceVariableTest < Test::Unit::TestCase
 
   def test_instance_variable_names
     assert_equal %w(@bar @baz), @source.instance_variable_names.sort
-  end
-
-  def test_instance_variable_defined
-    assert @source.instance_variable_defined?('@bar')
-    assert @source.instance_variable_defined?(:@bar)
-    assert !@source.instance_variable_defined?(:@foo)
-    assert !@source.instance_variable_defined?('@foo')
-  end
-
-  def test_copy_instance_variables_from_without_explicit_excludes
-    assert_equal [], @dest.instance_variables
-    @dest.copy_instance_variables_from(@source)
-
-    assert_equal %w(@bar @baz), @dest.instance_variables.sort.map(&:to_s)
-    %w(@bar @baz).each do |name|
-      assert_equal @source.instance_variable_get(name).object_id,
-                   @dest.instance_variable_get(name).object_id
-    end
-  end
-
-  def test_copy_instance_variables_from_with_explicit_excludes
-    @dest.copy_instance_variables_from(@source, ['@baz'])
-    assert !@dest.instance_variable_defined?('@baz')
-    assert_equal 'bar', @dest.instance_variable_get('@bar')
-  end
-
-  def test_copy_instance_variables_automatically_excludes_protected_instance_variables
-    @source.instance_variable_set(:@quux, 'quux')
-    class << @source
-      def protected_instance_variables
-        ['@bar', :@quux]
-      end
-    end
-
-    @dest.copy_instance_variables_from(@source)
-    assert !@dest.instance_variable_defined?('@bar')
-    assert !@dest.instance_variable_defined?('@quux')
-    assert_equal 'baz', @dest.instance_variable_get('@baz')
   end
 
   def test_instance_values
@@ -271,6 +102,12 @@ class ObjectTryTest < Test::Unit::TestCase
     assert_raise(NoMethodError) { @string.try(method) }
   end
   
+  def test_nonexisting_method_with_arguments
+    method = :undefined_method
+    assert !@string.respond_to?(method)
+    assert_raise(NoMethodError) { @string.try(method, 'llo', 'y') }
+  end
+
   def test_valid_method
     assert_equal 5, @string.try(:size)
   end
@@ -290,5 +127,15 @@ class ObjectTryTest < Test::Unit::TestCase
 
   def test_false_try
     assert_equal 'false', false.try(:to_s)
+  end
+
+  def test_try_only_block
+    assert_equal @string.reverse, @string.try { |s| s.reverse }
+  end
+
+  def test_try_only_block_nil
+    ran = false
+    nil.try { ran = true }
+    assert_equal false, ran
   end
 end

@@ -1,6 +1,35 @@
 require 'abstract_unit'
+require 'active_support/inflector'
+require 'active_support/time'
+require 'active_support/json'
 
 class DurationTest < ActiveSupport::TestCase
+  def test_is_a
+    d = 1.day
+    assert d.is_a?(ActiveSupport::Duration)
+    assert_kind_of ActiveSupport::Duration, d
+    assert_kind_of Numeric, d
+    assert_kind_of Fixnum, d
+    assert !d.is_a?(Hash)
+
+    k = Class.new
+    class << k; undef_method :== end
+    assert !d.is_a?(k)
+  end
+
+  def test_threequals
+    assert ActiveSupport::Duration === 1.day
+    assert !(ActiveSupport::Duration === 1.day.to_i)
+    assert !(ActiveSupport::Duration === 'foo')
+    assert !(ActiveSupport::Duration === ActiveSupport::BasicObject.new)
+  end
+
+  def test_equals
+    assert 1.day == 1.day
+    assert 1.day == 1.day.to_i
+    assert !(1.day == 'foo')
+  end
+
   def test_inspect
     assert_equal '0 seconds',                       0.seconds.inspect
     assert_equal '1 month',                         1.month.inspect
@@ -26,8 +55,8 @@ class DurationTest < ActiveSupport::TestCase
       flunk("no exception was raised")
     rescue ArgumentError => e
       assert_equal 'expected a time or date, got ""', e.message, "ensure ArgumentError is not being raised by dependencies.rb"
-    rescue Exception
-      flunk("ArgumentError should be raised, but we got #{$!.class} instead")
+    rescue Exception => e
+      flunk("ArgumentError should be raised, but we got #{e.class} instead")
     end
   end
 
@@ -54,35 +83,15 @@ class DurationTest < ActiveSupport::TestCase
   def test_since_and_ago_with_fractional_weeks
     t = Time.local(2000)
     # since
-    assert_in_delta((7 * 36).hours.since, 1.5.weeks.since, 1)
-    assert_in_delta((7 * 24 * 1.7).hours.since, 1.7.weeks.since, 1)
+    assert_equal((7 * 36).hours.since(t), 1.5.weeks.since(t))
+    assert_in_delta((7 * 24 * 1.7).hours.since(t), 1.7.weeks.since(t), 1)
     # ago
-    assert_in_delta((7 * 36).hours.ago, 1.5.weeks.ago, 1)
-    assert_in_delta((7 * 24 * 1.7).hours.ago, 1.7.weeks.ago, 1)
+    assert_equal((7 * 36).hours.ago(t), 1.5.weeks.ago(t))
+    assert_in_delta((7 * 24 * 1.7).hours.ago(t), 1.7.weeks.ago(t), 1)
   end
 
-  def test_deprecated_fractional_years
-    years_re = /Fractional years are not respected\. Convert value to integer before calling #years\./
-    assert_deprecated(years_re){1.0.years}
-    assert_deprecated(years_re){1.5.years}
-    assert_not_deprecated{1.years}
-    assert_deprecated(years_re){1.0.year}
-    assert_deprecated(years_re){1.5.year}
-    assert_not_deprecated{1.year}
-  end
-
-  def test_deprecated_fractional_months
-    months_re = /Fractional months are not respected\. Convert value to integer before calling #months\./
-    assert_deprecated(months_re){1.5.months}
-    assert_deprecated(months_re){1.0.months}
-    assert_not_deprecated{1.months}
-    assert_deprecated(months_re){1.5.month}
-    assert_deprecated(months_re){1.0.month}
-    assert_not_deprecated{1.month}
-  end
-
-  def test_since_and_ago_anchored_to_time_now_when_time_zone_default_not_set
-    Time.zone_default = nil
+  def test_since_and_ago_anchored_to_time_now_when_time_zone_is_not_set
+    Time.zone = nil
     with_env_tz 'US/Eastern' do
       Time.stubs(:now).returns Time.local(2000)
       # since
@@ -94,8 +103,8 @@ class DurationTest < ActiveSupport::TestCase
     end
   end
 
-  def test_since_and_ago_anchored_to_time_zone_now_when_time_zone_default_set
-    Time.zone_default = ActiveSupport::TimeZone['Eastern Time (US & Canada)']
+  def test_since_and_ago_anchored_to_time_zone_now_when_time_zone_is_set
+    Time.zone = ActiveSupport::TimeZone['Eastern Time (US & Canada)']
     with_env_tz 'US/Eastern' do
       Time.stubs(:now).returns Time.local(2000)
       # since
@@ -108,7 +117,31 @@ class DurationTest < ActiveSupport::TestCase
       assert_equal 'Eastern Time (US & Canada)', 5.seconds.ago.time_zone.name
     end
   ensure
-    Time.zone_default = nil
+    Time.zone = nil
+  end
+
+  def test_adding_hours_across_dst_boundary
+    with_env_tz 'CET' do
+      assert_equal Time.local(2009,3,29,0,0,0) + 24.hours, Time.local(2009,3,30,1,0,0)
+    end
+  end
+
+  def test_adding_day_across_dst_boundary
+    with_env_tz 'CET' do
+      assert_equal Time.local(2009,3,29,0,0,0) + 1.day, Time.local(2009,3,30,0,0,0)
+    end
+  end
+  
+  def test_delegation_with_block_works
+    counter = 0
+    assert_nothing_raised do
+      1.minute.times {counter += 1}
+    end
+    assert_equal counter, 60
+  end
+
+  def test_to_json
+    assert_equal '172800', 2.days.to_json
   end
 
   protected
