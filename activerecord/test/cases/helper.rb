@@ -1,5 +1,9 @@
-$:.unshift(File.dirname(__FILE__) + '/../../lib')
-$:.unshift(File.dirname(__FILE__) + '/../../../activesupport/lib')
+begin
+  old, $VERBOSE = $VERBOSE, nil
+  require File.expand_path('../../../load_paths', __FILE__)
+ensure
+  $VERBOSE = old
+end
 
 require 'config'
 

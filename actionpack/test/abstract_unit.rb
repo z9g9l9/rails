@@ -1,7 +1,9 @@
-$:.unshift File.expand_path('../../lib', __FILE__)
-$:.unshift File.expand_path('../../../activesupport/lib', __FILE__)
-$:.unshift File.expand_path('../fixtures/helpers', __FILE__)
-$:.unshift File.expand_path('../fixtures/alternate_helpers', __FILE__)
+begin
+  old, $VERBOSE = $VERBOSE, nil
+  require File.expand_path('../../../load_paths', __FILE__)
+ensure
+  $VERBOSE = old
+end
 
 require 'rubygems'
 require 'yaml'
