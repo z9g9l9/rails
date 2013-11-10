@@ -15,7 +15,7 @@ ruby -v
 # Because Rails 2.3 doesn't use Bundler for its own tests,
 # we need to setup an isolated gem environment.
 
-gem_environment_version="$(md5sum Gemfile.sh | cut -d' ' -f1)-$(ruby -e 'print RUBY_VERSION')"
+gem_environment_version="$(md5sum Gemfile | cut -d' ' -f1)-$(ruby -e 'print RUBY_VERSION')"
 
 gem_dir=`pwd`/.gem
 gem_pristine_dir=${gem_dir}-${gem_environment_version}
@@ -29,7 +29,8 @@ rm -rf $gem_dir
 if [ ! -d $gem_pristine_dir ]; then
   mkdir $gem_dir
 
-  . Gemfile.sh
+  gem install bundler
+  bundle install
 
   mv $gem_dir $gem_pristine_dir
 fi
