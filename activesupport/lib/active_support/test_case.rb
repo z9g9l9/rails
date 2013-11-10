@@ -3,15 +3,10 @@ require 'active_support/testing/setup_and_teardown'
 require 'active_support/testing/assertions'
 require 'active_support/testing/deprecation'
 require 'active_support/testing/declarative'
-
-begin
-  gem 'mocha', ">= 0.13.1"
-  require 'mocha/setup'
-rescue LoadError
-  # Fake Mocha::ExpectationError so we can rescue it in #run. Bleh.
-  Object.const_set :Mocha, Module.new
-  Mocha.const_set :ExpectationError, Class.new(StandardError)
-end
+require 'active_support/testing/pending'
+require 'active_support/testing/isolation'
+require 'active_support/testing/mochaing'
+require 'active_support/core_ext/kernel/reporting'
 
 module ActiveSupport
   class TestCase < ::Test::Unit::TestCase
@@ -20,25 +15,20 @@ module ActiveSupport
       alias_method :method_name, :name if method_defined? :name
       alias_method :method_name, :__name__ if method_defined? :__name__
     else
-      # TODO: Figure out how to get the Rails::BacktraceFilter into minitest/unit
-      if defined?(Rails) && ENV['BACKTRACE'].nil?
-        require 'rails/backtrace_cleaner'
-        Test::Unit::Util::BacktraceFilter.module_eval { include Rails::BacktraceFilterForTestUnit }
-      end
-
       Assertion = Test::Unit::AssertionFailedError
 
-      require 'active_support/testing/default'
-      include ActiveSupport::Testing::Default
+      undef :default_test
+    end
+
+    $tags = {}
+    def self.for_tag(tag)
+      yield if $tags[tag]
     end
 
     include ActiveSupport::Testing::SetupAndTeardown
     include ActiveSupport::Testing::Assertions
     include ActiveSupport::Testing::Deprecation
+    include ActiveSupport::Testing::Pending
     extend ActiveSupport::Testing::Declarative
-
-    def failed_pre_200
-      skip "failed pre-2.0.0"
-    end
   end
 end

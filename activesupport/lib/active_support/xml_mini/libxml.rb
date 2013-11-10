@@ -1,32 +1,41 @@
 require 'libxml'
+require 'active_support/core_ext/object/blank'
+require 'stringio'
 
 # = XmlMini LibXML implementation
 module ActiveSupport
   module XmlMini_LibXML #:nodoc:
     extend self
 
-    # Parse an XML Document string into a simple hash using libxml.
-    # string::
-    #   XML Document string to parse
-    def parse(string)
-      if string.blank?
+    # Parse an XML Document string or IO into a simple hash using libxml.
+    # data::
+    #   XML Document string or IO to parse
+    def parse(data)
+      if !data.respond_to?(:read)
+        data = StringIO.new(data || '')
+      end
+
+      char = data.getc
+      if char.nil?
         {}
       else
-        LibXML::XML::Parser.string(string.strip).parse.to_hash
+        data.ungetc(char)
+        LibXML::XML::Parser.io(data).parse.to_hash
       end
     end
+
   end
 end
 
-module LibXML
-  module Conversions
-    module Document
+module LibXML #:nodoc:
+  module Conversions #:nodoc:
+    module Document #:nodoc:
       def to_hash
         root.to_hash
       end
     end
 
-    module Node
+    module Node #:nodoc:
       CONTENT_ROOT = '__content__'.freeze
 
       # Convert XML document to hash
@@ -41,7 +50,6 @@ module LibXML
           when Array then hash[name] << node_hash
           when Hash  then hash[name] = [hash[name], node_hash]
           when nil   then hash[name] = node_hash
-          else raise "Unexpected error during hash insertion!"
         end
 
         # Handle child elements
@@ -53,7 +61,6 @@ module LibXML
             node_hash[CONTENT_ROOT] << c.content
           end
         end
-
 
         # Remove content node if it is blank
         if node_hash.length > 1 && node_hash[CONTENT_ROOT].blank?

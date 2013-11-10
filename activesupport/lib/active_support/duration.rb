@@ -1,13 +1,16 @@
 require 'active_support/basic_object'
+require 'active_support/core_ext/array/conversions'
+require 'active_support/core_ext/object/acts_like'
 
 module ActiveSupport
-  # Provides accurate date and time measurements using Date#advance and 
-  # Time#advance, respectively. It mainly supports the methods on Numeric,
-  # such as in this example:
+  # Provides accurate date and time measurements using Date#advance and
+  # Time#advance, respectively. It mainly supports the methods on Numeric.
+  # Example:
   #
   #   1.month.ago       # equivalent to Time.now.advance(:months => -1)
   class Duration < BasicObject
     attr_accessor :value, :parts
+    delegate :duplicable?, :to => :value # required when using ActiveSupport's BasicObject on 1.8
 
     def initialize(value, parts) #:nodoc:
       @value, @parts = value, parts
@@ -34,8 +37,9 @@ module ActiveSupport
     end
 
     def is_a?(klass) #:nodoc:
-      klass == Duration || super
+      Duration == klass || value.is_a?(klass)
     end
+    alias :kind_of? :is_a?
 
     # Returns true if <tt>other</tt> is also a Duration instance with the
     # same <tt>value</tt>, or if <tt>other == value</tt>.
@@ -48,7 +52,9 @@ module ActiveSupport
     end
 
     def self.===(other) #:nodoc:
-      other.is_a?(Duration) rescue super
+      other.is_a?(Duration)
+    rescue ::NoMethodError
+      false
     end
 
     # Calculates a new Time or Date that is as far in the future
@@ -75,6 +81,10 @@ module ActiveSupport
       parts.to_sentence(:locale => :en)
     end
 
+    def as_json(options = nil) #:nodoc:
+      to_i
+    end
+
     protected
 
       def sum(sign, time = ::Time.current) #:nodoc:
@@ -94,7 +104,7 @@ module ActiveSupport
     private
 
       def method_missing(method, *args, &block) #:nodoc:
-        value.send(method, *args)
+        value.send(method, *args, &block)
       end
   end
 end

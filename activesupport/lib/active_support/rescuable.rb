@@ -1,11 +1,17 @@
+require 'active_support/concern'
+require 'active_support/core_ext/class/attribute'
+require 'active_support/core_ext/proc'
+require 'active_support/core_ext/string/inflections'
+require 'active_support/core_ext/array/extract_options'
+
 module ActiveSupport
   # Rescuable module adds support for easier exception handling.
   module Rescuable
-    def self.included(base) # :nodoc:
-      base.class_inheritable_accessor :rescue_handlers
-      base.rescue_handlers = []
+    extend Concern
 
-      base.extend(ClassMethods)
+    included do
+      class_attribute :rescue_handlers
+      self.rescue_handlers = []
     end
 
     module ClassMethods
@@ -41,6 +47,7 @@ module ActiveSupport
       #         exception.record.new_record? ? ...
       #       end
       #   end
+      #
       def rescue_from(*klasses, &block)
         options = klasses.extract_options!
 
@@ -62,7 +69,7 @@ module ActiveSupport
           end
 
           # put the new handler at the end because the list is read in reverse
-          rescue_handlers << [key, options[:with]]
+          self.rescue_handlers += [[key, options[:with]]]
         end
       end
     end
@@ -78,7 +85,7 @@ module ActiveSupport
     def handler_for_rescue(exception)
       # We go from right to left because pairs are pushed onto rescue_handlers
       # as rescue_from declarations are found.
-      _, rescuer = Array(rescue_handlers).reverse.detect do |klass_name, handler|
+      _, rescuer = self.class.rescue_handlers.reverse.detect do |klass_name, handler|
         # The purpose of allowing strings in rescue_from is to support the
         # declaration of handler associations for exception classes whose
         # definition is yet unknown.
