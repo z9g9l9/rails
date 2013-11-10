@@ -11,4 +11,7 @@ Gem::Specification.new do |s|
   s.homepage = 'http://www.rubyonrails.org'
 
   s.require_path = 'lib'
+
+  s.add_dependency('i18n',       '~> 0.6', '>= 0.6.4')
+  s.add_dependency('multi_json', '~> 1.0')
 end
