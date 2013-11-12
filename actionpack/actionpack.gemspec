@@ -14,4 +14,5 @@ Gem::Specification.new do |s|
 
   s.add_dependency 'activesupport', "= #{version}"
   s.add_dependency 'rack', '~> 1.4'
+  s.add_dependency 'erubis', '~> 2.7.0'
 end
