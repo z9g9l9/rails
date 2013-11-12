@@ -1,8 +1,10 @@
-$:.unshift File.expand_path('../../../activesupport/lib', __FILE__)
-$:.unshift File.expand_path('../../../activerecord/lib', __FILE__)
-$:.unshift File.expand_path('../../../actionpack/lib', __FILE__)
-$:.unshift File.expand_path('../../../actionmailer/lib', __FILE__)
-$:.unshift File.expand_path('../../lib', __FILE__)
+begin
+  old, $VERBOSE = $VERBOSE, nil
+  require File.expand_path('../../../load_paths', __FILE__)
+ensure
+  $VERBOSE = old
+end
+
 $:.unshift File.expand_path('../../builtin/rails_info', __FILE__)
 
 require 'stringio'
