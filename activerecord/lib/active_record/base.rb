@@ -2487,6 +2487,12 @@ module ActiveRecord #:nodoc:
         result
       end
 
+      # Returns an ActiveRecord::ModelName object for module. It can be
+      # used to retrieve all kinds of naming-related information.
+      def model_name
+        @model_name ||= ::ActiveRecord::ModelName.new(name)
+      end
+
       # A model instance's primary key is always available as model.id
       # whether you name it the default 'id' or set it to something else.
       def id

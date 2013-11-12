@@ -56,6 +56,7 @@ module ActiveRecord
   autoload :DynamicScopeMatch, 'active_record/dynamic_scope_match'
   autoload :Migration, 'active_record/migration'
   autoload :Migrator, 'active_record/migration'
+  autoload :ModelName, 'active_record/model_name'
   autoload :NamedScope, 'active_record/named_scope'
   autoload :NestedAttributes, 'active_record/nested_attributes'
   autoload :Observing, 'active_record/observer'
