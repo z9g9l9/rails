@@ -12,7 +12,7 @@ end
 
 desc 'Generate a crytographically secure secret key. This is typically used to generate a secret for cookie sessions.'
 task :secret do
-  puts ActiveSupport::SecureRandom.hex(64)
+  puts SecureRandom.hex(64)
 end
 
 require 'active_support/all'

@@ -212,7 +212,7 @@ module ActionController
         end
       
         def generate_sid
-          ActiveSupport::SecureRandom.hex(16)
+          SecureRandom.hex(16)
         end
 
         def load_session(env)

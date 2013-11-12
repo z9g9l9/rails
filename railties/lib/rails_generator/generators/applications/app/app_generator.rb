@@ -1,7 +1,6 @@
 require 'rbconfig'
 require File.dirname(__FILE__) + '/template_runner'
 require 'digest/md5' 
-require 'active_support/secure_random'
 
 class AppGenerator < Rails::Generator::Base
   DEFAULT_SHEBANG = File.join(Config::CONFIG['bindir'], Config::CONFIG['ruby_install_name'])
@@ -192,10 +191,10 @@ class AppGenerator < Rails::Generator::Base
       end
 
       m.template "configs/initializers/session_store.rb", "config/initializers/session_store.rb", 
-        :assigns => { :app_name => @app_name, :app_secret => ActiveSupport::SecureRandom.hex(64) }
+        :assigns => { :app_name => @app_name, :app_secret => SecureRandom.hex(64) }
 
       m.template "configs/initializers/cookie_verification_secret.rb", "config/initializers/cookie_verification_secret.rb", 
-        :assigns => { :app_secret => ActiveSupport::SecureRandom.hex(64) }
+        :assigns => { :app_secret => SecureRandom.hex(64) }
     end
 
     def create_locale_file(m)

@@ -201,7 +201,7 @@ module ActionController
 
           if secret.length < SECRET_MIN_LENGTH
             raise ArgumentError, "Secret should be something secure, " +
-              "like \"#{ActiveSupport::SecureRandom.hex(16)}\".  The value you " +
+              "like \"#{SecureRandom.hex(16)}\".  The value you " +
               "provided, \"#{secret}\", is shorter than the minimum length " +
               "of #{SECRET_MIN_LENGTH} characters"
           end
@@ -213,7 +213,7 @@ module ActionController
         end
 
         def generate_sid
-          ActiveSupport::SecureRandom.hex(16)
+          SecureRandom.hex(16)
         end
 
         def destroy(env)

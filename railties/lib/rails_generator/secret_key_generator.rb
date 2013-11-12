@@ -8,8 +8,8 @@ module Rails
   #   generator = Rails::SecretKeyGenerator("some unique identifier, such as the application name")
   #   generator.generate_secret     # => "f3f1be90053fa851... (some long string)"
   #
-  # This class is *deprecated* in Rails 2.2 in favor of ActiveSupport::SecureRandom.
-  # It is currently a wrapper around ActiveSupport::SecureRandom.
+  # This class is *deprecated* in Rails 2.2 in favor of SecureRandom.
+  # It is currently a wrapper around SecureRandom.
   class SecretKeyGenerator
     def initialize(identifier)
     end
@@ -17,8 +17,8 @@ module Rails
     # Generate a random secret key with the best possible method available on
     # the current platform.
     def generate_secret
-      ActiveSupport::SecureRandom.hex(64)
+      SecureRandom.hex(64)
     end
-    deprecate :generate_secret=>"You should use ActiveSupport::SecureRandom.hex(64)"
+    deprecate :generate_secret=>"You should use SecureRandom.hex(64)"
   end
 end
