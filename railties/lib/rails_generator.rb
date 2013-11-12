@@ -28,7 +28,7 @@ activesupport = File.expand_path("../../../activesupport/lib", __FILE__)
 $:.unshift(activesupport) unless $:.include?(activesupport)
 
 begin
-  require 'active_support'  
+  require 'active_support/all'
 rescue LoadError
   require 'rubygems'
   gem 'activesupport'

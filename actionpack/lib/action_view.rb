@@ -22,12 +22,12 @@
 #++
 
 begin
-  require 'active_support'
+  require 'active_support/all'
 rescue LoadError
   activesupport_path = "#{File.dirname(__FILE__)}/../../activesupport/lib"
   if File.directory?(activesupport_path)
     $:.unshift activesupport_path
-    require 'active_support'
+    require 'active_support/all'
   end
 end
 

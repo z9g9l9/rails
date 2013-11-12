@@ -15,7 +15,7 @@ task :secret do
   puts ActiveSupport::SecureRandom.hex(64)
 end
 
-require 'active_support'
+require 'active_support/all'
 namespace :time do
   namespace :zones do
     desc 'Displays names of all time zones recognized by the Rails TimeZone class, grouped by offset. Results can be filtered with optional OFFSET parameter, e.g., OFFSET=-6'

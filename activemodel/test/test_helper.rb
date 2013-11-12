@@ -8,7 +8,7 @@ require 'active_model'
 require 'active_model/state_machine'
 
 $:.unshift File.expand_path('../../../activesupport/lib', __FILE__)
-require 'active_support'
+require 'active_support/all'
 require 'active_support/test_case'
 
 class ActiveModel::TestCase < ActiveSupport::TestCase

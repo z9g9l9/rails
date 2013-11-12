@@ -2,7 +2,7 @@
 
 begin
   $:.unshift(File.expand_path(File.dirname(__FILE__) + '/../lib'))
-  require 'active_support'
+  require 'active_support/all'
 rescue IOError
 end
 

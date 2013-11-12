@@ -1,4 +1,4 @@
-require 'active_support'
+require 'active_support/all'
 require 'action_controller'
 
 require 'fileutils'
