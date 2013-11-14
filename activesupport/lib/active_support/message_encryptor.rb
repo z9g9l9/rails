@@ -29,12 +29,12 @@ module ActiveSupport
       encrypted_data = cipher.update(Marshal.dump(value)) 
       encrypted_data << cipher.final
 
-      [encrypted_data, iv].map {|v| ActiveSupport::Base64.encode64s(v)}.join("--")
+      [encrypted_data, iv].map {|v| ::Base64.strict_encode64(v)}.join("--")
     end
     
     def decrypt(encrypted_message)
       cipher = new_cipher
-      encrypted_data, iv = encrypted_message.split("--").map {|v| ActiveSupport::Base64.decode64(v)}
+      encrypted_data, iv = encrypted_message.split("--").map {|v| ::Base64.decode64(v)}
       
       cipher.decrypt
       cipher.key = @secret
