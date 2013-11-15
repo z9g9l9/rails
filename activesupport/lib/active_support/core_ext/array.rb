@@ -3,7 +3,7 @@ require 'active_support/core_ext/array/conversions'
 require 'active_support/core_ext/array/extract_options'
 require 'active_support/core_ext/array/grouping'
 require 'active_support/core_ext/array/random_access'
-require 'active_support/core_ext/array/wrapper'
+require 'active_support/core_ext/array/wrap'
 
 class Array #:nodoc:
   include ActiveSupport::CoreExtensions::Array::Access
@@ -11,5 +11,4 @@ class Array #:nodoc:
   include ActiveSupport::CoreExtensions::Array::ExtractOptions
   include ActiveSupport::CoreExtensions::Array::Grouping
   include ActiveSupport::CoreExtensions::Array::RandomAccess
-  extend ActiveSupport::CoreExtensions::Array::Wrapper
 end
