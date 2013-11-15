@@ -1,3 +1,5 @@
+require 'active_support/core_ext/module/anonymous'
+require 'active_support/core_ext/module/reachable'
 require 'active_support/core_ext/module/inclusion'
 require 'active_support/core_ext/module/attribute_accessors'
 require 'active_support/core_ext/module/attr_internal'
