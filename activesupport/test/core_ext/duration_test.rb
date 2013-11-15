@@ -31,56 +31,6 @@ class DurationTest < ActiveSupport::TestCase
     end
   end
 
-  def test_fractional_weeks
-    assert_equal((86400 * 7) * 1.5, 1.5.weeks)
-    assert_equal((86400 * 7) * 1.7, 1.7.weeks)
-  end
-
-  def test_fractional_days
-    assert_equal 86400 * 1.5, 1.5.days
-    assert_equal 86400 * 1.7, 1.7.days
-  end
-
-  def test_since_and_ago_with_fractional_days
-    t = Time.local(2000)
-    # since
-    assert_equal 36.hours.since(t), 1.5.days.since(t)
-    assert_in_delta((24 * 1.7).hours.since(t), 1.7.days.since(t), 1)
-    # ago
-    assert_equal 36.hours.ago(t), 1.5.days.ago(t)
-    assert_in_delta((24 * 1.7).hours.ago(t), 1.7.days.ago(t), 1)
-  end
-
-  def test_since_and_ago_with_fractional_weeks
-    t = Time.local(2000)
-    # since
-    assert_in_delta((7 * 36).hours.since, 1.5.weeks.since, 1)
-    assert_in_delta((7 * 24 * 1.7).hours.since, 1.7.weeks.since, 1)
-    # ago
-    assert_in_delta((7 * 36).hours.ago, 1.5.weeks.ago, 1)
-    assert_in_delta((7 * 24 * 1.7).hours.ago, 1.7.weeks.ago, 1)
-  end
-
-  def test_deprecated_fractional_years
-    years_re = /Fractional years are not respected\. Convert value to integer before calling #years\./
-    assert_deprecated(years_re){1.0.years}
-    assert_deprecated(years_re){1.5.years}
-    assert_not_deprecated{1.years}
-    assert_deprecated(years_re){1.0.year}
-    assert_deprecated(years_re){1.5.year}
-    assert_not_deprecated{1.year}
-  end
-
-  def test_deprecated_fractional_months
-    months_re = /Fractional months are not respected\. Convert value to integer before calling #months\./
-    assert_deprecated(months_re){1.5.months}
-    assert_deprecated(months_re){1.0.months}
-    assert_not_deprecated{1.months}
-    assert_deprecated(months_re){1.5.month}
-    assert_deprecated(months_re){1.0.month}
-    assert_not_deprecated{1.month}
-  end
-
   def test_since_and_ago_anchored_to_time_now_when_time_zone_default_not_set
     Time.zone_default = nil
     with_env_tz 'US/Eastern' do
