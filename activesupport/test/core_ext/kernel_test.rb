@@ -1,4 +1,5 @@
 require 'abstract_unit'
+require 'active_support/core_ext/kernel'
 
 class KernelTest < Test::Unit::TestCase
   def test_silence_warnings
@@ -39,5 +40,76 @@ class KernelTest < Test::Unit::TestCase
 
   def test_silence_stderr_with_return_value
     assert_equal 1, silence_stderr { 1 }
+  end
+
+  def test_singleton_class
+    o = Object.new
+    assert_equal class << o; self end, o.singleton_class
+  end
+
+  def test_class_eval
+    o = Object.new
+    class << o; @x = 1; end
+    assert_equal 1, o.class_eval { @x }
+  end
+
+  def test_capture
+    assert_equal 'STDERR', capture(:stderr) { $stderr.print 'STDERR' }
+    assert_equal 'STDOUT', capture(:stdout) { print 'STDOUT' }
+  end
+end
+
+class KernelSuppressTest < Test::Unit::TestCase
+  def test_reraise
+    assert_raise(LoadError) do
+      suppress(ArgumentError) { raise LoadError }
+    end
+  end
+
+  def test_suppression
+    suppress(ArgumentError) { raise ArgumentError }
+    suppress(LoadError) { raise LoadError }
+    suppress(LoadError, ArgumentError) { raise LoadError }
+    suppress(LoadError, ArgumentError) { raise ArgumentError }
+  end
+end
+
+class MockStdErr
+  attr_reader :output
+  def puts(message)
+    @output ||= []
+    @output << message
+  end
+
+  def info(message)
+    puts(message)
+  end
+
+  def write(message)
+    puts(message)
+  end
+end
+
+class KernelDebuggerTest < Test::Unit::TestCase
+  def test_debugger_not_available_message_to_stderr
+    old_stderr = $stderr
+    $stderr = MockStdErr.new
+    debugger
+    assert_match(/Debugger requested/, $stderr.output.first)
+  ensure
+    $stderr = old_stderr
+  end
+
+  def test_debugger_not_available_message_to_rails_logger
+    rails = Class.new do
+      def self.logger
+        @logger ||= MockStdErr.new
+      end
+    end
+    Object.const_set("Rails", rails)
+    debugger
+    assert_match(/Debugger requested/, rails.logger.output.first)
+  ensure
+    Object.send(:remove_const, "Rails")
   end
 end

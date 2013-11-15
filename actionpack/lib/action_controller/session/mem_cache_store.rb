@@ -1,5 +1,5 @@
 begin
-  require_library_or_gem 'memcache'
+  require 'memcache'
   require 'thread'
   module ActionController
     module Session

@@ -6,7 +6,7 @@ require 'optparse'
 
 # TODO: Push Thin adapter upstream so we don't need worry about requiring it
 begin
-  require_library_or_gem 'thin'
+  require 'thin'
 rescue Exception
   # Thin not available
 end

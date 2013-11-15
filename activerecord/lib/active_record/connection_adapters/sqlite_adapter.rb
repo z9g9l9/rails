@@ -9,7 +9,7 @@ module ActiveRecord
         parse_sqlite_config!(config)
 
         unless self.class.const_defined?(:SQLite)
-          require_library_or_gem(config[:adapter])
+          require(config[:adapter])
 
           db = SQLite::Database.new(config[:database], 0)
           db.show_datatypes   = "ON" if !defined? SQLite::Version

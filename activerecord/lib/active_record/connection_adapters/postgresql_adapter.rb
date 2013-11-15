@@ -1,10 +1,10 @@
 require 'active_record/connection_adapters/abstract_adapter'
 
 begin
-  require_library_or_gem 'pg'
+  require 'pg'
 rescue LoadError => e
   begin
-    require_library_or_gem 'postgres'
+    require 'postgres'
     class PGresult
       alias_method :nfields, :num_fields unless self.method_defined?(:nfields)
       alias_method :ntuples, :num_tuples unless self.method_defined?(:ntuples)

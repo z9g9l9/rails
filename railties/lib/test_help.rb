@@ -27,7 +27,7 @@ if defined?(ActiveRecord)
 end
 
 begin
-  require_library_or_gem 'ruby-debug'
+  require 'ruby-debug'
   Debugger.start
   if Debugger.respond_to?(:settings)
     Debugger.settings[:autoeval] = true

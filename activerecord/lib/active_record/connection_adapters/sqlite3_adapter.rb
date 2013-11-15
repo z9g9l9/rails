@@ -7,7 +7,7 @@ module ActiveRecord
       parse_sqlite_config!(config)
 
       unless self.class.const_defined?(:SQLite3)
-        require_library_or_gem(config[:adapter])
+        require(config[:adapter])
       end
 
       db = SQLite3::Database.new(
