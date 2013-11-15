@@ -40,6 +40,7 @@ module ActiveSupport
   autoload :MessageEncryptor, 'active_support/message_encryptor'
   autoload :MessageVerifier, 'active_support/message_verifier'
   autoload :Multibyte, 'active_support/multibyte'
+  autoload :Notifications, 'active_support/notifications'
   autoload :OptionMerger, 'active_support/option_merger'
   autoload :OrderedHash, 'active_support/ordered_hash'
   autoload :OrderedOptions, 'active_support/ordered_options'
