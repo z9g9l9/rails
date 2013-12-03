@@ -122,9 +122,8 @@ class QueryStringParsingTest < ActionController::IntegrationTest
         set.draw do |map|
           map.connect ':action', :controller => "query_string_parsing_test/test"
         end
-        @app = self.class.build_app(set) do |middleware|
-          middleware.use(EarlyParse)
-        end
+        @stack = ActionController::MiddlewareStack.new
+        @stack.use(EarlyParse)
 
         get "/parse", actual
         assert_response :ok
