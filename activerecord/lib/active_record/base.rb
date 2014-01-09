@@ -3072,7 +3072,11 @@ module ActiveRecord #:nodoc:
       # Interpolate custom SQL string in instance context.
       # Optional record argument is meant for custom insert_sql.
       def interpolate_sql(sql, record = nil)
-        instance_eval("%@#{sql.gsub('@', '\@')}@")
+        if sql =~ /\#\{/
+          instance_eval("%@#{sql.gsub('@', '\@')}@")
+        else
+          sql
+        end
       end
 
       # Initializes the attributes array with keys matching the columns from the linked table and
