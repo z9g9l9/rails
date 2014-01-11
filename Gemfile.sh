@@ -5,3 +5,5 @@ gem install sqlite3 -v=1.3.7
 gem install rack    -v=1.4.5
 gem install erubis  -v=2.7.0
 gem install json    -v=1.8.0
+
+gem install vendor/builder-2.1.3.ruby21.7054942.gem
