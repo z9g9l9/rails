@@ -425,6 +425,8 @@ module ActionController #:nodoc:
     end
 
     def process(action, parameters = nil, session = nil, flash = nil, http_method = 'GET')
+      @routes ||= ActionController::Routing::Routes
+
       # Sanity check for required instance variables so we can give an
       # understandable error message.
       %w(@routes @controller @request @response).each do |iv_name|
