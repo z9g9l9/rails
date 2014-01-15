@@ -175,13 +175,6 @@ module ActionView #:nodoc:
       delegate :logger, :to => 'ActionController::Base'
     end
 
-    @@debug_rjs = false
-    ##
-    # :singleton-method:
-    # Specify whether RJS responses should be wrapped in a try/catch block
-    # that alert()s the caught exception (and then re-raises it).
-    cattr_accessor :debug_rjs
-
     # Specify whether templates should be cached. Otherwise the file we be read everytime it is accessed.
     # Automatically reloading templates are not thread safe and should only be used in development mode.
     @@cache_template_loading = nil
@@ -210,24 +203,10 @@ module ActionView #:nodoc:
       ActionView::PathSet.new(Array(value))
     end
 
-    attr_reader :helpers
-
-    class ProxyModule < Module
-      def initialize(receiver)
-        @receiver = receiver
-      end
-
-      def include(*args)
-        super(*args)
-        @receiver.extend(*args)
-      end
-    end
-
     def initialize(view_paths = [], assigns_for_first_render = {}, controller = nil)#:nodoc:
       @assigns = assigns_for_first_render
       @assigns_added = nil
       @controller = controller
-      @helpers = ProxyModule.new(self)
       self.view_paths = view_paths
 
       @_first_render = nil
@@ -270,8 +249,6 @@ module ActionView #:nodoc:
         elsif options[:text]
           options[:text]
         end
-      when :update
-        update_page(&block)
       else
         render_partial(:partial => options, :locals => local_assigns)
       end

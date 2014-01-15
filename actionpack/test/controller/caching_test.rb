@@ -622,6 +622,19 @@ class FragmentCachingTest < ActionController::TestCase
     assert_equal 'generated till now -> fragment content', buffer
   end
 
+  def test_fragment_for_bytesize
+    buffer = "\xC4\x8D"
+    buffer.force_encoding('ASCII-8BIT')
+
+    @controller.fragment_for(buffer, 'bytesize') do
+      buffer.force_encoding('UTF-8')
+      buffer << "abc"
+    end
+
+    assert_equal Encoding::UTF_8, buffer.encoding
+    assert_equal "abc", @store.read('views/bytesize')
+  end
+
   def test_html_safety
     assert_nil @store.read('views/name')
     content = 'value'.html_safe
@@ -703,13 +716,6 @@ CACHED
     assert_match "Some cached content", @store.read('views/test.host/functional_caching/inline_fragment_cached')
   end
 
-  def test_fragment_caching_in_rjs_partials
-    xhr :get, :js_fragment_cached_with_partial
-    assert_response :success
-    assert_match /Fragment caching in a partial/, @response.body
-    assert_match "Fragment caching in a partial", @store.read('views/test.host/functional_caching/js_fragment_cached_with_partial')
-  end
-
   def test_html_formatted_fragment_caching
     get :formatted_fragment_cached, :format => "html"
     assert_response :success
@@ -728,16 +734,5 @@ CACHED
     assert_equal expected_body, @response.body
 
     assert_equal "  <p>Builder</p>\n", @store.read('views/test.host/functional_caching/formatted_fragment_cached')
-  end
-
-  def test_js_formatted_fragment_caching
-    get :formatted_fragment_cached, :format => "js"
-    assert_response :success
-    expected_body = %(title = "Hey";\n$("element_1").visualEffect("highlight");\n) +
-      %($("element_2").visualEffect("highlight");\nfooter = "Bye";)
-    assert_equal expected_body, @response.body
-
-    assert_equal ['$("element_1").visualEffect("highlight");', '$("element_2").visualEffect("highlight");'],
-      @store.read('views/test.host/functional_caching/formatted_fragment_cached')
   end
 end

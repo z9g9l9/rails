@@ -829,13 +829,6 @@ module ActionController #:nodoc:
               render_for_text(@template.render(options), options[:status])
             end
 
-          elsif options[:update]
-            @template.send(:_evaluate_assigns_and_ivars)
-
-            generator = ActionView::Helpers::PrototypeHelper::JavaScriptGenerator.new(@template, &block)
-            response.content_type = Mime::JS
-            render_for_text(generator.to_s, options[:status])
-
           elsif options[:nothing]
             render_for_text(nil, options[:status])
 
@@ -1124,9 +1117,7 @@ module ActionController #:nodoc:
       end
 
       def initialize_template_class(response)
-        response.template = ActionView::Base.new(self.class.view_paths, {}, self)
-        response.template.helpers.send :include, ActionController::Routing::Routes.url_helpers
-        response.template.helpers.send :include, self.class.master_helper_module
+        response.template = self.class.master_helper_class.new(self.class.view_paths, {}, self)
         response.redirected_to = nil
         @performed_render = @performed_redirect = false
       end
@@ -1177,8 +1168,8 @@ module ActionController #:nodoc:
         if action_methods.include?(action_name)
           send(action_name)
           default_render unless performed?
-        elsif respond_to? :method_missing
-          method_missing action_name
+        elsif defined?(self.method_missing) # returns "method" if method_missing is public or protected, but not if it's private
+          method_missing action_name.intern
           default_render unless performed?
         else
           begin

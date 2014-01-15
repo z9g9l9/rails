@@ -147,7 +147,6 @@ module Rails
       initialize_framework_logging
 
       initialize_dependency_mechanism
-      initialize_whiny_nils
 
       initialize_time_zone
       initialize_i18n
@@ -222,7 +221,7 @@ module Rails
       if Rails.vendor_rails?
         begin; require "rubygems"; rescue LoadError; return; end
 
-        stubs = %w(rails activesupport activerecord actionpack actionmailer activeresource)
+        stubs = %w(rails activesupport activerecord actionpack actionmailer)
         stubs.reject! { |s| Gem.loaded_specs.key?(s) }
 
         stubs.each do |stub|
@@ -543,12 +542,6 @@ Run `rake gems:install` to install the missing gems.
       ActiveSupport::Dependencies.mechanism = configuration.cache_classes ? :require : :load
     end
 
-    # Loads support for "whiny nil" (noisy warnings when methods are invoked
-    # on +nil+ values) if Configuration#whiny_nils is true.
-    def initialize_whiny_nils
-      require('active_support/whiny_nil') if configuration.whiny_nils
-    end
-
     # Sets the default value for Time.zone, and turns on ActiveRecord::Base#time_zone_aware_attributes.
     # If assigned value cannot be matched to a TimeZone, an exception will be raised.
     def initialize_time_zone
@@ -663,9 +656,6 @@ Run `rake gems:install` to install the missing gems.
     # A stub for setting options on ActiveRecord::Base.
     attr_accessor :active_record
 
-    # A stub for setting options on ActiveResource::Base.
-    attr_accessor :active_resource
-
     # A stub for setting options on ActiveSupport.
     attr_accessor :active_support
 
@@ -690,8 +680,7 @@ Run `rake gems:install` to install the missing gems.
 
     # The list of rails framework components that should be loaded. (Defaults
     # to <tt>:active_record</tt>, <tt>:action_controller</tt>,
-    # <tt>:action_view</tt>, <tt>:action_mailer</tt>, and
-    # <tt>:active_resource</tt>).
+    # <tt>:action_view</tt>, and <tt>:action_mailer</tt>).
     attr_accessor :frameworks
 
     # An array of additional paths to prepend to the load path. By default,
@@ -751,10 +740,6 @@ Run `rake gems:install` to install the missing gems.
 
     # The root of the application's views. (Defaults to <tt>app/views</tt>.)
     attr_accessor :view_path
-
-    # Set to +true+ if you want to be warned (noisily) when you try to invoke
-    # any method of +nil+. Set to +false+ for the standard Ruby behavior.
-    attr_accessor :whiny_nils
 
     # The list of plugins to load. If this is set to <tt>nil</tt>, all plugins will
     # be loaded. If this is set to <tt>[]</tt>, no plugins will be loaded. Otherwise,
@@ -870,7 +855,6 @@ Run `rake gems:install` to install the missing gems.
       self.preload_frameworks           = default_preload_frameworks
       self.cache_classes                = default_cache_classes
       self.dependency_loading           = default_dependency_loading
-      self.whiny_nils                   = default_whiny_nils
       self.plugins                      = default_plugins
       self.plugin_paths                 = default_plugin_paths
       self.plugin_locators              = default_plugin_locators
@@ -975,7 +959,7 @@ Run `rake gems:install` to install the missing gems.
       paths = %w(railties railties/lib activesupport/lib)
       paths << 'actionpack/lib' if frameworks.include?(:action_controller) || frameworks.include?(:action_view)
 
-      [:active_record, :action_mailer, :active_resource, :action_web_service].each do |framework|
+      [:active_record, :action_mailer, :action_web_service].each do |framework|
         paths << "#{framework.to_s.gsub('_', '')}/lib" if frameworks.include?(framework)
       end
 
@@ -988,7 +972,7 @@ Run `rake gems:install` to install the missing gems.
       end
 
       def default_frameworks
-        [ :active_record, :action_controller, :action_view, :action_mailer, :active_resource ]
+        [ :active_record, :action_controller, :action_view, :action_mailer ]
       end
 
       def default_autoload_paths
@@ -1065,10 +1049,6 @@ Run `rake gems:install` to install the missing gems.
 
       def default_cache_classes
         true
-      end
-
-      def default_whiny_nils
-        false
       end
 
       def default_plugins

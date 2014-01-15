@@ -3,7 +3,7 @@ require 'rdoc/task'
 
 env = %(PKG_BUILD="#{ENV['PKG_BUILD']}") if ENV['PKG_BUILD']
 
-PROJECTS = %w(activesupport railties actionpack actionmailer activeresource activerecord)
+PROJECTS = %w(activesupport railties actionpack actionmailer activerecord)
 
 Dir["#{File.dirname(__FILE__)}/*/lib/*/version.rb"].each do |version_path|
   require version_path
@@ -15,9 +15,12 @@ task :default => :test
 %w(test rdoc pgem package release gem).each do |task_name|
   desc "Run #{task_name} task for all projects"
   task task_name do
+    passed = true
     PROJECTS.each do |project|
       system %(cd #{project} && #{env} #{$0} #{task_name})
+      passed &&= $?.success?
     end
+    exit! passed
   end
 end
 
@@ -44,11 +47,6 @@ RDoc::Task.new do |rdoc|
   rdoc.rdoc_files.include('activerecord/CHANGELOG')
   rdoc.rdoc_files.include('activerecord/lib/active_record/**/*.rb')
   rdoc.rdoc_files.exclude('activerecord/lib/active_record/vendor/*')
-
-  rdoc.rdoc_files.include('activeresource/README')
-  rdoc.rdoc_files.include('activeresource/CHANGELOG')
-  rdoc.rdoc_files.include('activeresource/lib/active_resource.rb')
-  rdoc.rdoc_files.include('activeresource/lib/active_resource/*')
 
   rdoc.rdoc_files.include('actionpack/README')
   rdoc.rdoc_files.include('actionpack/CHANGELOG')

@@ -184,7 +184,6 @@ class StringInflectionsTest < Test::Unit::TestCase
     s = "hello"
     assert s.starts_with?('h')
     assert s.starts_with?('hel')
-    assert !s.starts_with?(:hel)
     assert !s.starts_with?('el')
 
     assert s.start_with?('h')
@@ -193,7 +192,6 @@ class StringInflectionsTest < Test::Unit::TestCase
 
     assert s.ends_with?('o')
     assert s.ends_with?('lo')
-    assert !s.ends_with?(:lo)
     assert !s.ends_with?('el')
 
     assert s.end_with?('o')
@@ -331,6 +329,7 @@ class OutputSafetyTest < ActiveSupport::TestCase
   end
 
   test "Adding an unsafe string to a safe string doesn't escape it without rails_xss but returns a safe string" do
+    failed_pre_200
     @other_string = "other".html_safe
     @combination = @other_string + "<foo>"
     @other_combination = @string + "<foo>"
@@ -351,6 +350,7 @@ class OutputSafetyTest < ActiveSupport::TestCase
   end
 
   test "Concatting unsafe onto safe yields safe by not escaped without rails_xss" do
+    failed_pre_200
     @other_string = "other".html_safe
     string = @other_string.concat("<foo>")
     assert_equal "other<foo>", string
@@ -374,6 +374,7 @@ class OutputSafetyTest < ActiveSupport::TestCase
   end
 
   test "Concatting unsafe onto safe with << yields safe but not escaped without rails_xss" do
+    failed_pre_200
     @other_string = "other".html_safe
     string = @other_string << "<foo>"
     assert_equal "other<foo>", string
@@ -396,14 +397,17 @@ class OutputSafetyTest < ActiveSupport::TestCase
   end
 
   test 'emits normal string yaml' do
+    failed_pre_200
     assert_equal 'foo'.to_yaml, 'foo'.html_safe.to_yaml(:foo => 1)
   end
 
   test 'yaml output using +' do
+    failed_pre_200
     assert_equal "--- foobar\n", ('foo' + 'bar').to_yaml
   end
 
   test 'yaml output using <<' do
+    failed_pre_200
     assert_equal "--- foobar\n", ('foo' << 'bar').to_yaml
   end
 end

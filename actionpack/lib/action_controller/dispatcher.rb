@@ -22,11 +22,6 @@ module ActionController
         end
       end
 
-      # DEPRECATE: Remove CGI support
-      def dispatch(cgi = nil, session_options = CgiRequest::DEFAULT_SESSION_OPTIONS, output = $stdout)
-        new(output).dispatch_cgi(cgi, session_options)
-      end
-
       # Add a preparation callback. Preparation callbacks are run before every
       # request in development mode, and before the first request in production
       # mode.
@@ -42,13 +37,7 @@ module ActionController
       end
 
       def run_prepare_callbacks
-        if defined?(Rails) && Rails.logger
-          logger = Rails.logger
-        else
-          logger = Logger.new($stderr)
-        end
-
-        new(logger).send :run_callbacks, :prepare_dispatch
+        new.send :run_callbacks, :prepare_dispatch
       end
 
       def reload_application
@@ -75,10 +64,8 @@ module ActionController
     include ActiveSupport::Callbacks
     define_callbacks :prepare_dispatch, :before_dispatch, :after_dispatch
 
-    # DEPRECATE: Remove arguments, since they are only used by CGI
-    def initialize(output = $stdout, request = nil, response = nil)
-      @output = output
-      build_middleware_stack if @@cache_classes
+    def initialize
+      build_middleware_stack
     end
 
     def dispatch
@@ -96,21 +83,11 @@ module ActionController
       end
     end
 
-    # DEPRECATE: Remove CGI support
-    def dispatch_cgi(cgi, session_options)
-      CGIHandler.dispatch_cgi(self, cgi, @output)
-    end
-
     def call(env)
       if @@cache_classes
         @app.call(env)
       else
         Reloader.run do
-          # When class reloading is turned on, we will want to rebuild the
-          # middleware stack every time we process a request. If we don't
-          # rebuild the middleware stack, then the stack may contain references
-          # to old classes metal classes, which will b0rk class reloading.
-          build_middleware_stack
           @app.call(env)
         end
       end

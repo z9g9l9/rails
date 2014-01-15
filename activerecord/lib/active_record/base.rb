@@ -2921,11 +2921,21 @@ module ActiveRecord #:nodoc:
           if k.to_s.include?("(")
             multiparameter_attributes << [ k, v ]
           else
-            respond_to?(:"#{k}=") ? send(:"#{k}=", v) : raise(UnknownAttributeError, "unknown attribute: #{k}")
+            _assign_attribute(k, v)
           end
         end
 
         assign_multiparameter_attributes(multiparameter_attributes) unless  multiparameter_attributes.empty?        
+      end
+
+      def _assign_attribute(k, v)
+        public_send("#{k}=", v)
+      rescue NoMethodError => e
+        if respond_to?("#{k}=")
+          raise e
+        else
+          raise UnknownAttributeError, "unknown attribute: #{k}"
+        end
       end
     
       def create_or_update
