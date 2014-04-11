@@ -110,18 +110,18 @@ class NilXmlSerializationTest < ActiveRecord::TestCase
   end
 
   def test_should_serialize_string
-    assert_match %r{<name nil="true"/>},     @xml
+    assert_match %r{<name nil="true"></name>},     @xml
   end
 
   def test_should_serialize_integer
-    assert %r{<age (.*)/>}.match(@xml)
+    assert %r{<age (.*)></age>}.match(@xml)
     attributes = $1
     assert_match %r{nil="true"}, attributes
     assert_match %r{type="integer"}, attributes
   end
 
   def test_should_serialize_binary
-    assert %r{<avatar (.*)/>}.match(@xml)
+    assert %r{<avatar (.*)></avatar>}.match(@xml)
     attributes = $1
     assert_match %r{type="binary"}, attributes
     assert_match %r{encoding="base64"}, attributes
@@ -129,21 +129,21 @@ class NilXmlSerializationTest < ActiveRecord::TestCase
   end
 
   def test_should_serialize_datetime
-    assert %r{<created-at (.*)/>}.match(@xml)
+    assert %r{<created-at (.*)></created-at>}.match(@xml)
     attributes = $1
     assert_match %r{nil="true"}, attributes
     assert_match %r{type="datetime"}, attributes
   end
 
   def test_should_serialize_boolean
-    assert %r{<awesome (.*)/>}.match(@xml)
+    assert %r{<awesome (.*)></awesome>}.match(@xml)
     attributes = $1
     assert_match %r{type="boolean"}, attributes
     assert_match %r{nil="true"}, attributes
   end
 
   def test_should_serialize_yaml
-    assert_match %r{<preferences nil=\"true\"/>}, @xml
+    assert_match %r{<preferences nil=\"true\"></preferences>}, @xml
   end
 end
 
@@ -257,6 +257,12 @@ class DatabaseConnectedXmlSerializationTest < ActiveRecord::TestCase
     assert_equal 2, array.size
     assert array.include? 'twitter'
     assert array.include? 'github'
+  end
+
+  def test_should_support_aliased_attributes
+    xml = Author.select("name as firstname").to_xml
+    array = Hash.from_xml(xml)['authors']
+    assert_equal array.size, array.select { |author| author.has_key? 'firstname' }.size
   end
 
 end

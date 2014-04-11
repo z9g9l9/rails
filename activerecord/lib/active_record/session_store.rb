@@ -40,7 +40,7 @@ module ActiveRecord
   # You must implement these methods:
   #
   #   self.find_by_session_id(session_id)
-  #   initialize(hash_of_session_id_and_data)
+  #   initialize(hash_of_session_id_and_data, options_hash = {})
   #   attr_reader :session_id
   #   attr_accessor :data
   #   save
@@ -59,10 +59,12 @@ module ActiveRecord
       end
 
       def drop_table!
+        connection_pool.clear_table_cache!(table_name)
         connection.drop_table table_name
       end
 
       def create_table!
+        connection_pool.clear_table_cache!(table_name)
         connection.create_table(table_name) do |t|
           t.string session_id_column, :limit => 255
           t.text data_column_name
@@ -80,6 +82,8 @@ module ActiveRecord
       # Customizable data column name.  Defaults to 'data'.
       cattr_accessor :data_column_name
       self.data_column_name = 'data'
+
+      attr_accessible :session_id, :data, :marshaled_data
 
       before_save :marshal_data!
       before_save :raise_on_session_data_overflow!
@@ -121,7 +125,7 @@ module ActiveRecord
           end
       end
 
-      def initialize(attributes = nil)
+      def initialize(attributes = nil, options = {})
         @data = nil
         super
       end
@@ -179,11 +183,6 @@ module ActiveRecord
 
       ##
       # :singleton-method:
-      # Use the ActiveRecord::Base.connection by default.
-      cattr_accessor :connection
-
-      ##
-      # :singleton-method:
       # The table name defaults to 'sessions'.
       cattr_accessor :table_name
       @@table_name = 'sessions'
@@ -202,10 +201,19 @@ module ActiveRecord
 
       class << self
         alias :data_column_name :data_column
+        
+        # Use the ActiveRecord::Base.connection by default.
+        attr_writer :connection
+        
+        # Use the ActiveRecord::Base.connection_pool by default.
+        attr_writer :connection_pool
 
-        remove_method :connection
         def connection
-          @@connection ||= ActiveRecord::Base.connection
+          @connection ||= ActiveRecord::Base.connection
+        end
+
+        def connection_pool
+          @connection_pool ||= ActiveRecord::Base.connection_pool
         end
 
         # Look up a session by id and unmarshal its data if found.
@@ -215,6 +223,8 @@ module ActiveRecord
           end
         end
       end
+      
+      delegate :connection, :connection=, :connection_pool, :connection_pool=, :to => self
 
       attr_reader :session_id, :new_record
       alias :new_record? :new_record
@@ -288,18 +298,23 @@ module ActiveRecord
     self.session_class = Session
 
     SESSION_RECORD_KEY = 'rack.session.record'
+    ENV_SESSION_OPTIONS_KEY = Rack::Session::Abstract::ENV_SESSION_OPTIONS_KEY
 
     private
       def get_session(env, sid)
         Base.silence do
-          sid ||= generate_sid
-          session = find_session(sid)
+          unless sid and session = @@session_class.find_by_session_id(sid)
+            # If the sid was nil or if there is no pre-existing session under the sid,
+            # force the generation of a new sid and associate a new session associated with the new sid
+            sid = generate_sid
+            session = @@session_class.new(:session_id => sid, :data => {})
+          end
           env[SESSION_RECORD_KEY] = session
           [sid, session.data]
         end
       end
 
-      def set_session(env, sid, session_data)
+      def set_session(env, sid, session_data, options)
         Base.silence do
           record = get_session_model(env, sid)
           record.data = session_data
@@ -316,12 +331,15 @@ module ActiveRecord
         sid
       end
 
-      def destroy(env)
+      def destroy_session(env, session_id, options)
         if sid = current_session_id(env)
           Base.silence do
             get_session_model(env, sid).destroy
+            env[SESSION_RECORD_KEY] = nil
           end
         end
+
+        generate_sid unless options[:drop]
       end
 
       def get_session_model(env, sid)
