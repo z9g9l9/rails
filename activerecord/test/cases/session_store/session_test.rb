@@ -5,7 +5,7 @@ require 'active_record/session_store'
 module ActiveRecord
   class SessionStore
     class SessionTest < ActiveRecord::TestCase
-      self.use_transactional_fixtures = false unless supports_savepoints? && ActiveRecord::Base.connection.supports_ddl_transactions?
+      self.use_transactional_fixtures = false
 
       def setup
         super
@@ -19,12 +19,6 @@ module ActiveRecord
 
       def test_table_name
         assert_equal 'sessions', Session.table_name
-      end
-
-      def test_accessible_attributes
-        assert Session.accessible_attributes.include?(:session_id)
-        assert Session.accessible_attributes.include?(:data)
-        assert Session.accessible_attributes.include?(:marshaled_data)
       end
 
       def test_create_table!
@@ -66,7 +60,6 @@ module ActiveRecord
       end
 
       def test_loaded?
-        Session.create_table!
         s = Session.new
         assert !s.loaded?, 'session is not loaded'
       end
