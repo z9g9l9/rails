@@ -1848,15 +1848,6 @@ MSG
         end
       end
 
-      # Backport dup from 1.9 so that initialize_dup() gets called
-      unless Object.respond_to?(:initialize_dup)
-        def dup # :nodoc:
-          copy = super
-          copy.initialize_dup(self)
-          copy
-        end
-      end
-
       # Duped objects have no id assigned and are treated as new records. Note
       # that this is a "shallow" copy as it copies the object's attributes
       # only, not its associations. The extent of a "deep" copy is application
