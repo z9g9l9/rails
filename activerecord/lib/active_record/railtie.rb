@@ -80,7 +80,7 @@ module ActiveRecord
 
     initializer "active_record.set_dispatch_hooks", :before => :set_clear_dependencies_hook do |app|
       ActiveSupport.on_load(:active_record) do
-        ActionDispatch::Reloader.to_cleanup do
+        ActionDispatch::Callbacks.to_cleanup do
           ActiveRecord::Base.clear_reloadable_connections!
           ActiveRecord::Base.clear_cache!
         end
@@ -91,7 +91,7 @@ module ActiveRecord
       ActiveSupport.on_load(:active_record) do
         instantiate_observers
 
-        ActionDispatch::Reloader.to_prepare do
+        ActionDispatch::Callbacks.to_prepare do
           ActiveRecord::Base.instantiate_observers
         end
       end
@@ -101,7 +101,7 @@ module ActiveRecord
       container  = :"activerecord.attributes"
       lookup = I18n.t(container, :default => {})
       if lookup.is_a?(Hash)
-        lookup.each do |key, value| 
+        lookup.each do |key, value|
           if value.is_a?(Hash) && value.any? { |k,v| v.is_a?(Hash) }
             $stderr.puts "[DEPRECATION WARNING] Nested I18n namespace lookup under \"#{container}.#{key}\" is no longer supported"
           end
