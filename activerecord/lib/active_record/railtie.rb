@@ -80,7 +80,7 @@ module ActiveRecord
 
     initializer "active_record.set_dispatch_hooks", :before => :set_clear_dependencies_hook do |app|
       ActiveSupport.on_load(:active_record) do
-        ActionDispatch::Callbacks.to_cleanup do
+        ActionDispatch::Callbacks.after do
           ActiveRecord::Base.clear_reloadable_connections!
           ActiveRecord::Base.clear_cache!
         end
