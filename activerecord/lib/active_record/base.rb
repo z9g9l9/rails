@@ -1754,7 +1754,7 @@ MSG
         attributes.each do |k, v|
           if k.include?("(")
             multi_parameter_attributes << [ k, v ]
-          elsif respond_to?("#{k}=")
+          elsif respond_to?("#{k}=") || self.class.protected_method_defined?("#{k}=")
             send("#{k}=", v)
           else
             raise(UnknownAttributeError, "unknown attribute: #{k}")
@@ -2128,7 +2128,7 @@ MSG
         return unless self.class.scope_attributes?
 
         self.class.scope_attributes.each do |att,value|
-          send("#{att}=", value) if respond_to?("#{att}=")
+          send("#{att}=", value) if respond_to?("#{att}=") || self.class.protected_method_defined?("#{att}=")
         end
       end
 
