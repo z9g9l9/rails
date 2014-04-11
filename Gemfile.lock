@@ -54,6 +54,7 @@ GEM
   specs:
     addressable (2.3.6)
     arel (2.2.3)
+    bcrypt-ruby (3.0.1)
     builder (3.2.2)
     coderay (1.1.0)
     erubis (2.7.0)
@@ -106,6 +107,7 @@ PLATFORMS
 DEPENDENCIES
   addressable
   arel
+  bcrypt-ruby (~> 3.0.0)
   faker
   horo (= 1.0.3)
   json
