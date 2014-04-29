@@ -208,7 +208,7 @@ class JsonSerializationTest < ActiveModel::TestCase
   end
 
   test "custom as_json options should be extendible" do
-    def @contact.as_json(options = {}); super(options.merge(:only => [:name])); end
+    def @contact.as_json(options); super((options || {}).merge(:only => [:name])); end
     json = @contact.to_json
 
     assert_match %r{"name":"Konata Izumi"}, json

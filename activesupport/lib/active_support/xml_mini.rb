@@ -128,7 +128,13 @@ module ActiveSupport
     def rename_key(key, options = {})
       camelize  = options.has_key?(:camelize) && options[:camelize]
       dasherize = !options.has_key?(:dasherize) || options[:dasherize]
-      key = key.camelize  if camelize
+      if camelize
+        if camelize == true
+          key = key.camelize
+        else
+          key = key.camelize(camelize)
+        end
+      end
       key = _dasherize(key) if dasherize
       key
     end
