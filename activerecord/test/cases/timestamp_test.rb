@@ -15,32 +15,6 @@ class TimestampTest < ActiveRecord::TestCase
     @previously_updated_at = @developer.updated_at
   end
 
-  def test_load_infinity_and_beyond
-    unless current_adapter?(:PostgreSQLAdapter)
-      return skip("only tested on postgresql")
-    end
-
-    d = Developer.find_by_sql("select 'infinity'::timestamp as updated_at")
-    assert d.first.updated_at.infinite?, 'timestamp should be infinite'
-
-    d = Developer.find_by_sql("select '-infinity'::timestamp as updated_at")
-    time = d.first.updated_at
-    assert time.infinite?, 'timestamp should be infinite'
-    assert_operator time, :<, 0
-  end
-
-  def test_save_infinity_and_beyond
-    unless current_adapter?(:PostgreSQLAdapter)
-      return skip("only tested on postgresql")
-    end
-
-    d = Developer.create!(:name => 'aaron', :updated_at => 1.0 / 0.0)
-    assert_equal(1.0 / 0.0, d.updated_at)
-
-    d = Developer.create!(:name => 'aaron', :updated_at => -1.0 / 0.0)
-    assert_equal(-1.0 / 0.0, d.updated_at)
-  end
-
   def test_saving_a_changed_record_updates_its_timestamp
     @developer.name = "Jack Bauer"
     @developer.save!
@@ -67,7 +41,7 @@ class TimestampTest < ActiveRecord::TestCase
     assert_equal previous_salary, @developer.salary
   end
 
-  def test_touching_a_record_with_default_scope_that_exludes_it_updates_its_timestamp
+  def test_touching_a_record_with_default_scope_that_excludes_it_updates_its_timestamp
     developer = @developer.becomes(DeveloperCalledJamis)
 
     developer.touch
@@ -84,6 +58,16 @@ class TimestampTest < ActiveRecord::TestCase
     assert_equal @previously_updated_at, @developer.updated_at
   ensure
     Developer.record_timestamps = true
+  end
+
+  def test_saving_when_instance_record_timestamps_is_false_doesnt_update_its_timestamp
+    @developer.record_timestamps = false
+    assert Developer.record_timestamps
+
+    @developer.name = "John Smith"
+    @developer.save!
+
+    assert_equal @previously_updated_at, @developer.updated_at
   end
 
   def test_touching_an_attribute_updates_timestamp
@@ -149,7 +133,7 @@ class TimestampTest < ActiveRecord::TestCase
 
     pet = Pet.first
     owner = pet.owner
-    owner.update_attribute(:happy_at, (time = 3.days.ago))
+    owner.update_attribute(:happy_at, 3.days.ago)
     previously_owner_updated_at = owner.updated_at
 
     pet.name = "I'm a parrot"
@@ -167,12 +151,44 @@ class TimestampTest < ActiveRecord::TestCase
     toy = Toy.first
     pet = toy.pet
     owner = pet.owner
+    time = 3.days.ago
 
-    owner.update_attribute(:updated_at, (time = 3.days.ago))
+    owner.update_column(:updated_at, time)
     toy.touch
+    owner.reload
 
     assert_not_equal time, owner.updated_at
   ensure
     Toy.belongs_to :pet
+  end
+
+  def test_timestamp_attributes_for_create
+    toy = Toy.first
+    assert_equal toy.send(:timestamp_attributes_for_create), [:created_at, :created_on]
+  end
+
+  def test_timestamp_attributes_for_update
+    toy = Toy.first
+    assert_equal toy.send(:timestamp_attributes_for_update), [:updated_at, :updated_on]
+  end
+
+  def test_all_timestamp_attributes
+    toy = Toy.first
+    assert_equal toy.send(:all_timestamp_attributes), [:created_at, :created_on, :updated_at, :updated_on]
+  end
+
+  def test_timestamp_attributes_for_create_in_model
+    toy = Toy.first
+    assert_equal toy.send(:timestamp_attributes_for_create_in_model), [:created_at]
+  end
+
+  def test_timestamp_attributes_for_update_in_model
+    toy = Toy.first
+    assert_equal toy.send(:timestamp_attributes_for_update_in_model), [:updated_at]
+  end
+
+  def test_all_timestamp_attributes_in_model
+    toy = Toy.first
+    assert_equal toy.send(:all_timestamp_attributes_in_model), [:created_at, :updated_at]
   end
 end

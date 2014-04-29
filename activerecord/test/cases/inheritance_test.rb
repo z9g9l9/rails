@@ -2,9 +2,10 @@ require "cases/helper"
 require 'models/company'
 require 'models/project'
 require 'models/subscriber'
+require 'models/vegetables'
 
 class InheritanceTest < ActiveRecord::TestCase
-  fixtures :companies, :projects, :subscribers, :accounts
+  fixtures :companies, :projects, :subscribers, :accounts, :vegetables
 
   def test_class_with_store_full_sti_class_returns_full_name
     old = ActiveRecord::Base.store_full_sti_class
@@ -16,7 +17,7 @@ class InheritanceTest < ActiveRecord::TestCase
 
   def test_class_with_blank_sti_name
     company = Company.find(:first)
-    company = company.clone
+    company = company.dup
     company.extend(Module.new {
       def read_attribute(name)
         return '  ' if name == 'type'
@@ -96,6 +97,13 @@ class InheritanceTest < ActiveRecord::TestCase
     switch_to_alt_inheritance_column
     test_inheritance_find
     switch_to_default_inheritance_column
+  end
+
+  def test_alt_becomes_works_with_sti
+    vegetable = Vegetable.find(1)
+    assert_kind_of Vegetable, vegetable
+    cabbage = vegetable.becomes(Cabbage)
+    assert_kind_of Cabbage, cabbage
   end
 
   def test_inheritance_find_all
@@ -203,12 +211,12 @@ class InheritanceTest < ActiveRecord::TestCase
 
   def test_eager_load_belongs_to_something_inherited
     account = Account.find(1, :include => :firm)
-    assert_not_nil account.instance_variable_get("@firm"), "nil proves eager load failed"
+    assert account.association_cache.key?(:firm), "nil proves eager load failed"
   end
 
   def test_eager_load_belongs_to_primary_key_quoting
     con = Account.connection
-    assert_sql(/\(#{con.quote_table_name('companies')}.#{con.quote_column_name('id')} = 1\)/) do
+    assert_sql(/#{con.quote_table_name('companies')}.#{con.quote_column_name('id')} IN \(1\)/) do
       Account.find(1, :include => :firm)
     end
   end
@@ -219,9 +227,18 @@ class InheritanceTest < ActiveRecord::TestCase
     switch_to_default_inheritance_column
   end
 
+  def test_inherits_custom_primary_key
+    assert_equal Subscriber.primary_key, SpecialSubscriber.primary_key
+  end
+
   def test_inheritance_without_mapping
     assert_kind_of SpecialSubscriber, SpecialSubscriber.find("webster132")
     assert_nothing_raised { s = SpecialSubscriber.new("name" => "And breaaaaathe!"); s.id = 'roger'; s.save }
+  end
+
+  def test_scope_inherited_properly
+    assert_nothing_raised { Company.of_first_firm }
+    assert_nothing_raised { Client.of_first_firm }
   end
 
   private
@@ -232,11 +249,11 @@ class InheritanceTest < ActiveRecord::TestCase
         c.save
       end
       [ Company, Firm, Client].each { |klass| klass.reset_column_information }
-      Company.set_inheritance_column('ruby_type')
+      Company.inheritance_column = 'ruby_type'
     end
     def switch_to_default_inheritance_column
       [ Company, Firm, Client].each { |klass| klass.reset_column_information }
-      Company.set_inheritance_column('type')
+      Company.inheritance_column = 'type'
     end
 end
 
@@ -276,5 +293,28 @@ class InheritanceComputeTypeTest < ActiveRecord::TestCase
     assert_nothing_raised { assert_kind_of Firm::FirmOnTheFly, Firm.find(foo.id) }
   ensure
     ActiveRecord::Base.store_full_sti_class = true
+  end
+end
+
+
+class GlobalInheritanceColumnTest < ActiveRecord::TestCase
+  fixtures :companies
+
+  setup do
+    @inheritance_column = ActiveRecord::Base.inheritance_column
+  end
+
+  teardown do
+    ActiveRecord::Base.inheritance_column = @inheritance_column
+  end
+
+  def test_changing_global_inheritance_column
+    ActiveRecord::Base.inheritance_column = 'ruby_type'
+
+    firm = Firm.create('name' => 'FirmWithAltInheritanceColumn')
+    assert_equal 'Firm', firm.ruby_type
+
+    assert_equal 'ruby_type', Company.inheritance_column
+    assert_equal 'ruby_type', Firm.inheritance_column
   end
 end

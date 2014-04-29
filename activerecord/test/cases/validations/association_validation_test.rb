@@ -17,7 +17,7 @@ class AssociationValidationTest < ActiveRecord::TestCase
     o = Owner.new('name' => 'nopets')
     assert !o.save
     assert o.errors[:pets].any?
-    pet = o.pets.build('name' => 'apet')
+    o.pets.build('name' => 'apet')
     assert o.valid?
   end
 
@@ -27,7 +27,7 @@ class AssociationValidationTest < ActiveRecord::TestCase
     assert !o.save
     assert o.errors[:pets].any?
 
-    pet = o.pets.build('name' => 'apet')
+    o.pets.build('name' => 'apet')
     assert o.valid?
 
     2.times { o.pets.build('name' => 'apet') }
@@ -59,6 +59,16 @@ class AssociationValidationTest < ActiveRecord::TestCase
     assert r.errors[:topic].any?
     r.topic.content = "non-empty"
     assert r.valid?
+  end
+
+  def test_validates_associated_marked_for_destruction
+    Topic.validates_associated(:replies)
+    Reply.validates_presence_of(:content)
+    t = Topic.new
+    t.replies << Reply.new
+    assert t.invalid?
+    t.replies.first.mark_for_destruction
+    assert t.valid?
   end
 
   def test_validates_associated_with_custom_message_using_quotes

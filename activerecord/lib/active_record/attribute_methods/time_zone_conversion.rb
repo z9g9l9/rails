@@ -1,3 +1,6 @@
+require 'active_support/core_ext/class/attribute'
+require 'active_support/core_ext/object/inclusion'
+
 module ActiveRecord
   module AttributeMethods
     module TimeZoneConversion
@@ -7,27 +10,22 @@ module ActiveRecord
         cattr_accessor :time_zone_aware_attributes, :instance_writer => false
         self.time_zone_aware_attributes = false
 
-        class_inheritable_accessor :skip_time_zone_conversion_for_attributes, :instance_writer => false
+        class_attribute :skip_time_zone_conversion_for_attributes, :instance_writer => false
         self.skip_time_zone_conversion_for_attributes = []
       end
 
       module ClassMethods
         protected
-          # Defined for all +datetime+ and +timestamp+ attributes when +time_zone_aware_attributes+ are enabled.
-          # This enhanced read method automatically converts the UTC time stored in the database to the time
+          # The enhanced read method automatically converts the UTC time stored in the database to the time
           # zone stored in Time.zone.
-          def define_method_attribute(attr_name)
-            if create_time_zone_conversion_attribute?(attr_name, columns_hash[attr_name])
-              method_body, line = <<-EOV, __LINE__ + 1
-                def _#{attr_name}(reload = false)
-                  cached = @attributes_cache['#{attr_name}']
-                  return cached if cached && !reload
-                  time = _read_attribute('#{attr_name}')
-                  @attributes_cache['#{attr_name}'] = time.acts_like?(:time) ? time.in_time_zone : time
-                end
-                alias #{attr_name} _#{attr_name}
-              EOV
-              generated_attribute_methods.module_eval(method_body, __FILE__, line)
+          def attribute_cast_code(attr_name)
+            column = columns_hash[attr_name]
+
+            if create_time_zone_conversion_attribute?(attr_name, column)
+              typecast             = "v = #{super}"
+              time_zone_conversion = "v.acts_like?(:time) ? v.in_time_zone : v"
+
+              "((#{typecast}) && (#{time_zone_conversion}))"
             else
               super
             end
@@ -39,12 +37,15 @@ module ActiveRecord
             if create_time_zone_conversion_attribute?(attr_name, columns_hash[attr_name])
               method_body, line = <<-EOV, __LINE__ + 1
                 def #{attr_name}=(original_time)
+                  original_time = nil if original_time.blank?
                   time = original_time
                   unless time.acts_like?(:time)
                     time = time.is_a?(String) ? Time.zone.parse(time) : time.to_time rescue time
                   end
                   time = time.in_time_zone rescue nil if time
+                  previous_time = attribute_changed?("#{attr_name}") ? changed_attributes["#{attr_name}"] : read_attribute(:#{attr_name})
                   write_attribute(:#{attr_name}, original_time)
+                  #{attr_name}_will_change! if previous_time != time
                   @attributes_cache["#{attr_name}"] = time
                 end
               EOV
@@ -56,7 +57,7 @@ module ActiveRecord
 
         private
           def create_time_zone_conversion_attribute?(name, column)
-            time_zone_aware_attributes && !skip_time_zone_conversion_for_attributes.include?(name.to_sym) && [:datetime, :timestamp].include?(column.type)
+            time_zone_aware_attributes && !self.skip_time_zone_conversion_for_attributes.include?(name.to_sym) && column.type.in?([:datetime, :timestamp])
           end
       end
     end

@@ -9,6 +9,7 @@ module ActiveRecord
 
       def setup
         super
+        ActiveRecord::Base.connection.schema_cache.clear!
         Session.drop_table! if Session.table_exists?
       end
 
@@ -21,6 +22,12 @@ module ActiveRecord
         assert_equal 'sessions', Session.table_name
       end
 
+      def test_accessible_attributes
+        assert Session.accessible_attributes.include?(:session_id)
+        assert Session.accessible_attributes.include?(:data)
+        assert Session.accessible_attributes.include?(:marshaled_data)
+      end
+
       def test_create_table!
         assert !Session.table_exists?
         Session.create_table!
@@ -30,6 +37,7 @@ module ActiveRecord
       end
 
       def test_find_by_sess_id_compat
+        Session.reset_column_information
         klass = Class.new(Session) do
           def self.session_id_column
             'sessid'
@@ -47,6 +55,7 @@ module ActiveRecord
         assert_equal session.sessid, found.session_id
       ensure
         klass.drop_table!
+        Session.reset_column_information
       end
 
       def test_find_by_session_id
@@ -60,6 +69,7 @@ module ActiveRecord
       end
 
       def test_loaded?
+        Session.create_table!
         s = Session.new
         assert !s.loaded?, 'session is not loaded'
       end

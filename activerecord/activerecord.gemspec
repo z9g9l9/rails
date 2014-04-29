@@ -7,14 +7,15 @@ Gem::Specification.new do |s|
   s.summary     = 'Object-relational mapper framework (part of Rails).'
   s.description = 'Databases on Rails. Build a persistent domain model by mapping database tables to Ruby classes. Strong conventions for associations, validations, aggregations, migrations, and testing come baked-in.'
 
+  s.license = 'MIT'
+
   s.required_ruby_version = '>= 1.8.7'
 
   s.author            = 'David Heinemeier Hansson'
   s.email             = 'david@loudthinking.com'
   s.homepage          = 'http://www.rubyonrails.org'
-  s.rubyforge_project = 'activerecord'
 
-  s.files        = Dir['CHANGELOG', 'README.rdoc', 'examples/**/*', 'lib/**/*']
+  s.files        = Dir['CHANGELOG.md', 'MIT-LICENSE', 'README.rdoc', 'examples/**/*', 'lib/**/*']
   s.require_path = 'lib'
 
   s.extra_rdoc_files = %w( README.rdoc )
@@ -22,6 +23,6 @@ Gem::Specification.new do |s|
 
   s.add_dependency('activesupport', version)
   s.add_dependency('activemodel',   version)
-  s.add_dependency('arel',          '~> 2.0.10')
-  s.add_dependency('tzinfo',        '~> 0.3.23')
+  s.add_dependency('arel',          '~> 3.0.2')
+  s.add_dependency('tzinfo',        '~> 0.3.29')
 end

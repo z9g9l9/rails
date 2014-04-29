@@ -6,19 +6,6 @@ require 'models/warehouse_thing'
 require 'models/guid'
 require 'models/event'
 
-# The following methods in Topic are used in test_conditional_validation_*
-class Topic
-  has_many :unique_replies, :dependent => :destroy, :foreign_key => "parent_id"
-  has_many :silly_unique_replies, :dependent => :destroy, :foreign_key => "parent_id"
-end
-
-class UniqueReply < Reply
-  validates_uniqueness_of :content, :scope => 'parent_id'
-end
-
-class SillyUniqueReply < UniqueReply
-end
-
 class Wizard < ActiveRecord::Base
   self.abstract_class = true
 
@@ -33,6 +20,14 @@ class Conjurer < IneptWizard
 end
 
 class Thaumaturgist < IneptWizard
+end
+
+class ReplyTitle; end
+
+class ReplyWithTitleObject < Reply
+  validates_uniqueness_of :content, :scope => :title
+
+  def title; ReplyTitle.new; end
 end
 
 class UniquenessValidationTest < ActiveRecord::TestCase
@@ -60,7 +55,7 @@ class UniquenessValidationTest < ActiveRecord::TestCase
 
   def test_validates_uniqueness_with_validates
     Topic.validates :title, :uniqueness => true
-    t = Topic.create!('title' => 'abc')
+    Topic.create!('title' => 'abc')
 
     t2 = Topic.new('title' => 'abc')
     assert !t2.valid?
@@ -91,6 +86,14 @@ class UniquenessValidationTest < ActiveRecord::TestCase
     t2 = Topic.create("title" => "I'm unique too!")
     r3 = t2.replies.create "title" => "r3", "content" => "hello world"
     assert r3.valid?, "Saving r3"
+  end
+
+  def test_validate_uniqueness_with_composed_attribute_scope
+    r1 = ReplyWithTitleObject.create "title" => "r1", "content" => "hello world"
+    assert r1.valid?, "Saving r1"
+
+    r2 = ReplyWithTitleObject.create "title" => "r1", "content" => "hello world"
+    assert !r2.valid?, "Saving r2 first time"
   end
 
   def test_validate_uniqueness_scoped_to_defining_class
@@ -175,6 +178,32 @@ class UniquenessValidationTest < ActiveRecord::TestCase
     end
   end
 
+  def test_validate_case_sensitive_uniqueness_with_special_sql_like_chars
+    Topic.validates_uniqueness_of(:title, :case_sensitive => true)
+
+    t = Topic.new("title" => "I'm unique!")
+    assert t.save, "Should save t as unique"
+
+    t2 = Topic.new("title" => "I'm %")
+    assert t2.save, "Should save t2 as unique"
+
+    t3 = Topic.new("title" => "I'm uniqu_!")
+    assert t3.save, "Should save t3 as unique"
+  end
+
+  def test_validate_case_insensitive_uniqueness_with_special_sql_like_chars
+    Topic.validates_uniqueness_of(:title, :case_sensitive => false)
+
+    t = Topic.new("title" => "I'm unique!")
+    assert t.save, "Should save t as unique"
+
+    t2 = Topic.new("title" => "I'm %")
+    assert t2.save, "Should save t2 as unique"
+
+    t3 = Topic.new("title" => "I'm uniqu_!")
+    assert t3.save, "Should save t3 as unique"
+  end
+
   def test_validate_case_sensitive_uniqueness
     Topic.validates_uniqueness_of(:title, :case_sensitive => true, :allow_nil => true)
 
@@ -201,7 +230,7 @@ class UniquenessValidationTest < ActiveRecord::TestCase
 
   def test_validate_case_sensitive_uniqueness_with_attribute_passed_as_integer
     Topic.validates_uniqueness_of(:title, :case_sensitve => true)
-    t = Topic.create!('title' => 101)
+    Topic.create!('title' => 101)
 
     t2 = Topic.new('title' => 101)
     assert !t2.valid?
@@ -279,5 +308,16 @@ class UniquenessValidationTest < ActiveRecord::TestCase
     assert !w6.valid?, "w6 shouldn't be valid"
     assert w6.errors[:city].any?, "Should have errors for city"
     assert_equal ["has already been taken"], w6.errors[:city], "Should have uniqueness message for city"
+  end
+
+  def test_allow_nil_is_false
+    Topic.validates_uniqueness_of(:title, :allow_nil => false)
+    Topic.destroy_all
+
+    Topic.create!("title" => nil)
+    topic = Topic.new("title" => nil)
+    assert !topic.valid?, "topic should not be valid"
+    assert topic.errors[:title].any?, "Should have errors for title"
+    assert_equal ["has already been taken"], topic.errors[:title], "Should have uniqueness message for title"
   end
 end

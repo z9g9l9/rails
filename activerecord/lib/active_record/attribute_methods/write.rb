@@ -10,14 +10,7 @@ module ActiveRecord
       module ClassMethods
         protected
           def define_method_attribute=(attr_name)
-            if self.serialized_attributes[attr_name]
-              generated_attribute_methods.send(:define_method, "#{attr_name}=") do |new_value|
-                if new_value.is_a?(String) and new_value =~ /^---/
-                  raise ActiveRecordError, "You tried to assign already serialized content to #{attr_name}. This is disabled due to security issues."
-                end
-                write_attribute(attr_name, new_value)
-              end
-            elsif attr_name =~ /^[a-zA-Z_]\w*[!?=]?$/
+            if attr_name =~ ActiveModel::AttributeMethods::NAME_COMPILABLE_REGEXP
               generated_attribute_methods.module_eval("def #{attr_name}=(new_value); write_attribute('#{attr_name}', new_value); end", __FILE__, __LINE__)
             else
               generated_attribute_methods.send(:define_method, "#{attr_name}=") do |new_value|
@@ -31,19 +24,46 @@ module ActiveRecord
       # for fixnum and float columns are turned into +nil+.
       def write_attribute(attr_name, value)
         attr_name = attr_name.to_s
-        attr_name = self.class.primary_key if attr_name == 'id'
+        attr_name = self.class.primary_key if attr_name == 'id' && self.class.primary_key
         @attributes_cache.delete(attr_name)
-        if (column = column_for_attribute(attr_name)) && column.number?
-          @attributes[attr_name] = convert_number_column_value(value)
-        else
-          @attributes[attr_name] = value
+        column = column_for_attribute(attr_name)
+
+        unless column || @attributes.has_key?(attr_name)
+          ActiveSupport::Deprecation.warn(
+            "You're trying to create an attribute `#{attr_name}'. Writing arbitrary " \
+            "attributes on a model is deprecated. Please just use `attr_writer` etc."
+          )
         end
+
+        @attributes[attr_name] = type_cast_attribute_for_write(column, value)
       end
+      alias_method :raw_write_attribute, :write_attribute
 
       private
         # Handle *= for method_missing.
         def attribute=(attribute_name, value)
           write_attribute(attribute_name, value)
+        end
+
+        def type_cast_attribute_for_write(column, value)
+          if column && column.number?
+            convert_number_column_value(value)
+          else
+            value
+          end
+        end
+
+        def convert_number_column_value(value)
+          case value
+          when FalseClass
+            0
+          when TrueClass
+            1
+          when String
+            value.presence
+          else
+            value
+          end
         end
     end
   end

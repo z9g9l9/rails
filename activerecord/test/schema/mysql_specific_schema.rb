@@ -32,4 +32,25 @@ BEGIN
 END
 SQL
 
+  ActiveRecord::Base.connection.execute <<-SQL
+DROP TABLE IF EXISTS collation_tests;
+SQL
+
+  ActiveRecord::Base.connection.execute <<-SQL
+CREATE TABLE collation_tests (
+  string_cs_column VARCHAR(1) COLLATE utf8_bin,
+  string_ci_column VARCHAR(1) COLLATE utf8_general_ci
+) CHARACTER SET utf8 COLLATE utf8_general_ci
+SQL
+
+  ActiveRecord::Base.connection.execute <<-SQL
+DROP TABLE IF EXISTS enum_tests;
+SQL
+
+  ActiveRecord::Base.connection.execute <<-SQL
+CREATE TABLE enum_tests (
+  enum_column ENUM('true','false')
+)
+SQL
+
 end

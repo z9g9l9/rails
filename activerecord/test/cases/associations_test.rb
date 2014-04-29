@@ -1,4 +1,5 @@
 require "cases/helper"
+require 'models/computer'
 require 'models/developer'
 require 'models/project'
 require 'models/company'
@@ -66,7 +67,7 @@ class AssociationsTest < ActiveRecord::TestCase
     ship = Ship.create!(:name => "The good ship Dollypop")
     part = ship.parts.create!(:name => "Mast")
     part.mark_for_destruction
-    ShipPart.find(part.id).update_attribute(:name, 'Deck')
+    ShipPart.find(part.id).update_column(:name, 'Deck')
     ship.parts.send(:load_target)
     assert_equal 'Deck', ship.parts[0].name
   end
@@ -84,9 +85,8 @@ class AssociationsTest < ActiveRecord::TestCase
   end
 
   def test_should_construct_new_finder_sql_after_create
-    skip "failed already"
     person = Person.new :first_name => 'clark'
-    assert_equal [], person.readers.find(:all)
+    assert_equal [], person.readers.all
     person.save!
     reader = Reader.create! :person => person, :post => Post.new(:title => "foo", :body => "bar")
     assert person.readers.find(reader.id)
@@ -121,7 +121,7 @@ class AssociationsTest < ActiveRecord::TestCase
 
   def test_force_reload_is_uncached
     firm = Firm.create!("name" => "A New Firm, Inc")
-    client = Client.create!("name" => "TheClient.com", :firm => firm)
+    Client.create!("name" => "TheClient.com", :firm => firm)
     ActiveRecord::Base.cache do
       firm.clients.each {}
       assert_queries(0) { assert_not_nil firm.clients.each {} }
@@ -133,25 +133,6 @@ end
 
 class AssociationProxyTest < ActiveRecord::TestCase
   fixtures :authors, :posts, :categorizations, :categories, :developers, :projects, :developers_projects
-
-  def test_proxy_accessors
-    welcome = posts(:welcome)
-    assert_equal  welcome, welcome.author.proxy_owner
-    assert_equal  welcome.class.reflect_on_association(:author), welcome.author.proxy_reflection
-    welcome.author.class  # force load target
-    assert_equal  welcome.author, welcome.author.proxy_target
-
-    david = authors(:david)
-    assert_equal  david, david.posts.proxy_owner
-    assert_equal  david.class.reflect_on_association(:posts), david.posts.proxy_reflection
-    david.posts.class   # force load target
-    assert_equal  david.posts, david.posts.proxy_target
-
-    assert_equal  david, david.posts_with_extension.testing_proxy_owner
-    assert_equal  david.class.reflect_on_association(:posts_with_extension), david.posts_with_extension.testing_proxy_reflection
-    david.posts_with_extension.class   # force load target
-    assert_equal  david.posts_with_extension, david.posts_with_extension.testing_proxy_target
-  end
 
   def test_push_does_not_load_target
     david = authors(:david)
@@ -170,8 +151,6 @@ class AssociationProxyTest < ActiveRecord::TestCase
   end
 
   def test_push_followed_by_save_does_not_load_target
-    skip "failed already"
-
     david = authors(:david)
 
     david.posts << (post = Post.new(:title => "New on Edge", :body => "More cool stuff!"))
@@ -189,14 +168,11 @@ class AssociationProxyTest < ActiveRecord::TestCase
   end
 
   def test_save_on_parent_does_not_load_target
-    skip "failed already"
     david = developers(:david)
 
-    ActiveSupport::Deprecation.silence do
-      assert !david.projects.loaded?
-      david.update_attribute(:created_at, Time.now)
-      assert !david.projects.loaded?
-    end
+    assert !david.projects.loaded?
+    david.update_column(:created_at, Time.now)
+    assert !david.projects.loaded?
   end
 
   def test_inspect_does_not_reload_a_not_yet_loaded_target
@@ -222,38 +198,16 @@ class AssociationProxyTest < ActiveRecord::TestCase
     assert_equal post.body, "More cool stuff!"
   end
 
-  def test_failed_reload_returns_nil
-    p = setup_dangling_association
-    assert_nil p.author.reload
-  end
-
-  def test_failed_reset_returns_nil
-    p = setup_dangling_association
-    assert_nil p.author.reset
-  end
-
   def test_reload_returns_assocition
     david = developers(:david)
     assert_nothing_raised do
-      ActiveSupport::Deprecation.silence do
-        assert_equal david.projects, david.projects.reload.reload
-      end
+      assert_equal david.projects, david.projects.reload.reload
     end
   end
 
-  if RUBY_VERSION < '1.9'
-    def test_splat_does_not_invoke_to_a_on_singular_targets
-      author = posts(:welcome).author
-      author.reload.target.expects(:to_a).never
-      [*author]
-    end
-  end
-
-  def setup_dangling_association
-    josh = Author.create(:name => "Josh")
-    p = Post.create(:title => "New on Edge", :body => "More cool stuff!", :author => josh)
-    josh.destroy
-    p
+  def test_proxy_association_accessor
+    david = developers(:david)
+    assert_equal david.association(:projects), david.projects.proxy_association
   end
 end
 
@@ -278,17 +232,17 @@ class OverridingAssociationsTest < ActiveRecord::TestCase
 
   def test_habtm_association_redefinition_callbacks_should_differ_and_not_inherited
     # redeclared association on AR descendant should not inherit callbacks from superclass
-    callbacks = PeopleList.read_inheritable_attribute(:before_add_for_has_and_belongs_to_many)
+    callbacks = PeopleList.before_add_for_has_and_belongs_to_many
     assert_equal([:enlist], callbacks)
-    callbacks = DifferentPeopleList.read_inheritable_attribute(:before_add_for_has_and_belongs_to_many)
+    callbacks = DifferentPeopleList.before_add_for_has_and_belongs_to_many
     assert_equal([], callbacks)
   end
 
   def test_has_many_association_redefinition_callbacks_should_differ_and_not_inherited
     # redeclared association on AR descendant should not inherit callbacks from superclass
-    callbacks = PeopleList.read_inheritable_attribute(:before_add_for_has_many)
+    callbacks = PeopleList.before_add_for_has_many
     assert_equal([:enlist], callbacks)
-    callbacks = DifferentPeopleList.read_inheritable_attribute(:before_add_for_has_many)
+    callbacks = DifferentPeopleList.before_add_for_has_many
     assert_equal([], callbacks)
   end
 
@@ -318,5 +272,20 @@ class OverridingAssociationsTest < ActiveRecord::TestCase
       PeopleList.reflect_on_association(:has_one),
       DifferentPeopleList.reflect_on_association(:has_one)
     )
+  end
+end
+
+class GeneratedMethodsTest < ActiveRecord::TestCase
+  fixtures :developers, :computers, :posts, :comments
+  def test_association_methods_override_attribute_methods_of_same_name
+    assert_equal(developers(:david), computers(:workstation).developer)
+    # this next line will fail if the attribute methods module is generated lazily
+    # after the association methods module is generated
+    assert_equal(developers(:david), computers(:workstation).developer)
+    assert_equal(developers(:david).id, computers(:workstation)[:developer])
+  end
+
+  def test_model_method_overrides_association_method
+    assert_equal(comments(:greetings).body, posts(:welcome).first_comment)
   end
 end

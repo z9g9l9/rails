@@ -76,6 +76,19 @@ class DirtyTest < ActiveRecord::TestCase
       assert pirate.created_on_changed?
       assert_kind_of ActiveSupport::TimeWithZone, pirate.created_on_was
       assert_equal old_created_on, pirate.created_on_was
+      pirate.created_on = old_created_on
+      assert !pirate.created_on_changed?
+    end
+  end
+
+  def test_setting_time_attributes_with_time_zone_field_to_itself_should_not_be_marked_as_a_change
+    in_time_zone 'Paris' do
+      target = Class.new(ActiveRecord::Base)
+      target.table_name = 'pirates'
+
+      pirate = target.create
+      pirate.created_on = pirate.created_on
+      assert !pirate.created_on_changed?
     end
   end
 
@@ -190,7 +203,21 @@ class DirtyTest < ActiveRecord::TestCase
     end
   end
 
-  def test_nullable_integer_zero_to_string_zero_not_marked_as_changed
+  def test_nullable_datetime_not_marked_as_changed_if_new_value_is_blank
+    in_time_zone 'Edinburgh' do
+      target = Class.new(ActiveRecord::Base)
+      target.table_name = 'topics'
+
+      topic = target.create
+      assert_equal nil, topic.written_on
+
+      topic.written_on = ""
+      assert_equal nil, topic.written_on
+      assert !topic.written_on_changed?
+    end
+  end
+
+  def test_integer_zero_to_string_zero_not_marked_as_changed
     pirate = Pirate.new
     pirate.parrot_id = 0
     pirate.catchphrase = 'arrr'
@@ -201,6 +228,19 @@ class DirtyTest < ActiveRecord::TestCase
     pirate.parrot_id = '0'
     assert !pirate.changed?
   end
+
+  def test_integer_zero_to_integer_zero_not_marked_as_changed
+    pirate = Pirate.new
+    pirate.parrot_id = 0
+    pirate.catchphrase = 'arrr'
+    assert pirate.save!
+
+    assert !pirate.changed?
+
+    pirate.parrot_id = 0
+    assert !pirate.changed?
+  end
+
 
   def test_zero_to_blank_marked_as_changed
     pirate = Pirate.new
@@ -338,13 +378,13 @@ class DirtyTest < ActiveRecord::TestCase
     assert !pirate.changed?
   end
 
-  def test_cloned_objects_should_not_copy_dirty_flag_from_creator
+  def test_dup_objects_should_not_copy_dirty_flag_from_creator
     pirate = Pirate.create!(:catchphrase => "shiver me timbers")
-    pirate_clone = pirate.clone
-    pirate_clone.reset_catchphrase!
+    pirate_dup = pirate.dup
+    pirate_dup.reset_catchphrase!
     pirate.catchphrase = "I love Rum"
     assert pirate.catchphrase_changed?
-    assert !pirate_clone.catchphrase_changed?
+    assert !pirate_dup.catchphrase_changed?
   end
 
   def test_reverted_changes_are_not_dirty
@@ -395,11 +435,25 @@ class DirtyTest < ActiveRecord::TestCase
     end
   end
 
+  def test_save_always_should_update_timestamps_when_serialized_attributes_are_present
+    with_partial_updates(Topic) do
+      topic = Topic.create!(:content => {:a => "a"})
+      topic.save!
+
+      updated_at = topic.updated_at
+      topic.content[:hello] = 'world'
+      topic.save!
+
+      assert_not_equal updated_at, topic.updated_at
+      assert_equal 'world', topic.content[:hello]
+    end
+  end
+
   def test_save_should_not_save_serialized_attribute_with_partial_updates_if_not_present
     with_partial_updates(Topic) do
       Topic.create!(:author_name => 'Bill', :content => {:a => "a"})
       topic = Topic.select('id, author_name').first
-      topic.update_attribute :author_name, 'John'
+      topic.update_column :author_name, 'John'
       topic = Topic.first
       assert_not_nil topic.content
     end
@@ -481,6 +535,34 @@ class DirtyTest < ActiveRecord::TestCase
     assert_not_nil pirate.previous_changes['updated_on'][1]
     assert !pirate.previous_changes.key?('parrot_id')
     assert !pirate.previous_changes.key?('created_on')
+  end
+
+  if ActiveRecord::Base.connection.supports_migrations?
+    class Testings < ActiveRecord::Base; end
+    def test_field_named_field
+      ActiveRecord::Base.connection.create_table :testings do |t|
+        t.string :field
+      end
+      assert_nothing_raised do
+        Testings.new.attributes
+      end
+    ensure
+      ActiveRecord::Base.connection.drop_table :testings rescue nil
+    end
+  end
+
+  def test_datetime_attribute_can_be_updated_with_fractional_seconds
+    in_time_zone 'Paris' do
+      target = Class.new(ActiveRecord::Base)
+      target.table_name = 'topics'
+
+      written_on = Time.utc(2012, 12, 1, 12, 0, 0).in_time_zone('Paris')
+
+      topic = target.create(:written_on => written_on)
+      topic.written_on += 0.3
+
+      assert topic.written_on_changed?, 'Fractional second update not detected'
+    end
   end
 
   private

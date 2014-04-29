@@ -1,5 +1,4 @@
 require "cases/helper"
-require 'active_support/core_ext/string/encoding'
 
 
 class SchemaDumperTest < ActiveRecord::TestCase
@@ -110,7 +109,7 @@ class SchemaDumperTest < ActiveRecord::TestCase
 
       assert_match %r{c_int_4.*}, output
       assert_no_match %r{c_int_4.*:limit}, output
-    elsif current_adapter?(:SQLiteAdapter)
+    elsif current_adapter?(:SQLite3Adapter)
       assert_match %r{c_int_1.*:limit => 1}, output
       assert_match %r{c_int_2.*:limit => 2}, output
       assert_match %r{c_int_3.*:limit => 3}, output
@@ -119,7 +118,7 @@ class SchemaDumperTest < ActiveRecord::TestCase
     assert_match %r{c_int_without_limit.*}, output
     assert_no_match %r{c_int_without_limit.*:limit}, output
 
-    if current_adapter?(:SQLiteAdapter)
+    if current_adapter?(:SQLite3Adapter)
       assert_match %r{c_int_5.*:limit => 5}, output
       assert_match %r{c_int_6.*:limit => 6}, output
       assert_match %r{c_int_7.*:limit => 7}, output
@@ -207,10 +206,22 @@ class SchemaDumperTest < ActiveRecord::TestCase
   end
 
   if current_adapter?(:PostgreSQLAdapter)
+    def test_schema_dump_includes_bigint_default
+      output = standard_dump
+      assert_match %r{t.integer\s+"bigint_default",\s+:limit => 8,\s+:default => 0}, output
+    end
+
     def test_schema_dump_includes_xml_shorthand_definition
       output = standard_dump
       if %r{create_table "postgresql_xml_data_type"} =~ output
         assert_match %r{t.xml "data"}, output
+      end
+    end
+
+    def test_schema_dump_includes_tsvector_shorthand_definition
+      output = standard_dump
+      if %r{create_table "postgresql_tsvectors"} =~ output
+        assert_match %r{t.tsvector "text_vector"}, output
       end
     end
   end
@@ -232,4 +243,41 @@ class SchemaDumperTest < ActiveRecord::TestCase
     assert_match %r(:id => false), match[1], "no table id not preserved"
     assert_match %r{t.string[[:space:]]+"id",[[:space:]]+:null => false$}, match[2], "non-primary key id column not preserved"
   end
+
+  def test_schema_dump_keeps_id_false_when_id_is_false_and_unique_not_null_column_added
+    output = standard_dump
+    assert_match %r{create_table "subscribers", :id => false}, output
+  end
+
+  class CreateDogMigration < ActiveRecord::Migration
+    def up
+      create_table("dogs") do |t|
+        t.column :name, :string
+      end
+      add_index "dogs", [:name]
+    end
+    def down
+      drop_table("dogs")
+    end
+  end
+
+  def test_schema_dump_with_table_name_prefix_and_suffix
+    original, $stdout = $stdout, StringIO.new
+    ActiveRecord::Base.table_name_prefix = 'foo_'
+    ActiveRecord::Base.table_name_suffix = '_bar'
+
+    migration = CreateDogMigration.new
+    migration.migrate(:up)
+
+    output = standard_dump
+    assert_no_match %r{create_table "foo_.+_bar"}, output
+    assert_no_match %r{create_index "foo_.+_bar"}, output
+    assert_no_match %r{create_table "schema_migrations"}, output
+  ensure
+    migration.migrate(:down)
+
+    ActiveRecord::Base.table_name_suffix = ActiveRecord::Base.table_name_prefix = ''
+    $stdout = original
+  end
+
 end

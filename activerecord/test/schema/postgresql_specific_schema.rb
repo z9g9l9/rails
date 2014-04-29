@@ -1,6 +1,6 @@
 ActiveRecord::Schema.define do
 
-  %w(postgresql_arrays postgresql_moneys postgresql_numbers postgresql_times postgresql_network_addresses postgresql_bit_strings
+  %w(postgresql_tsvectors postgresql_arrays postgresql_moneys postgresql_numbers postgresql_times postgresql_network_addresses postgresql_bit_strings
       postgresql_oids postgresql_xml_data_type defaults geometrics postgresql_timestamp_with_zones).each do |table_name|
     execute "DROP TABLE  IF EXISTS #{quote_table_name table_name}"
   end
@@ -9,6 +9,8 @@ ActiveRecord::Schema.define do
   execute 'CREATE SEQUENCE companies_nonstd_seq START 101 OWNED BY companies.id'
   execute "ALTER TABLE companies ALTER COLUMN id SET DEFAULT nextval('companies_nonstd_seq')"
   execute 'DROP SEQUENCE IF EXISTS companies_id_seq'
+
+  execute "DROP SCHEMA IF EXISTS schema_1 CASCADE"
 
   %w(accounts_id_seq developers_id_seq projects_id_seq topics_id_seq customers_id_seq orders_id_seq).each do |seq_name|
     execute "SELECT setval('#{seq_name}', 100)"
@@ -28,6 +30,7 @@ ActiveRecord::Schema.define do
     char3 text default 'a text field',
     positive_integer integer default 1,
     negative_integer integer default -1,
+    bigint_default bigint default 0::bigint,
     decimal_number decimal(3,2) default 2.78,
     multiline_default text DEFAULT '--- []
 
@@ -35,7 +38,12 @@ ActiveRecord::Schema.define do
 );
 _SQL
 
-    execute <<_SQL
+  execute "CREATE SCHEMA schema_1"
+  execute "CREATE DOMAIN schema_1.text AS text"
+  execute "CREATE DOMAIN schema_1.varchar AS varchar"
+  execute "CREATE DOMAIN schema_1.bpchar AS bpchar"
+
+  execute <<_SQL
   CREATE TABLE geometrics (
     id serial primary key,
     a_point point,
@@ -55,6 +63,14 @@ _SQL
     nicknames TEXT[]
   );
 _SQL
+
+  execute <<_SQL
+  CREATE TABLE postgresql_tsvectors (
+    id SERIAL PRIMARY KEY,
+    text_vector tsvector
+  );
+_SQL
+
   execute <<_SQL
   CREATE TABLE postgresql_moneys (
     id SERIAL PRIMARY KEY,
@@ -116,6 +132,11 @@ _SQL
     );
 _SQL
 rescue #This version of PostgreSQL either has no XML support or is was not compiled with XML support: skipping table
+  end
+
+  create_table :limitless_fields, :force => true do |t|
+    t.binary :binary, :limit => 100_000
+    t.text :text, :limit => 100_000
   end
 end
 

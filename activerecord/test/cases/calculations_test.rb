@@ -1,9 +1,11 @@
 require "cases/helper"
-require 'models/company'
-require 'models/topic'
-require 'models/edge'
 require 'models/club'
+require 'models/company'
+require "models/contract"
+require 'models/edge'
 require 'models/organization'
+require 'models/possession'
+require 'models/topic'
 
 Company.has_many :accounts
 
@@ -63,9 +65,18 @@ class CalculationsTest < ActiveRecord::TestCase
 
   def test_should_group_by_field
     c = Account.sum(:credit_limit, :group => :firm_id)
-    [1,6,2].each { |firm_id| assert c.keys.include?(firm_id) }
+    [1,6,2].each do |firm_id|
+      assert c.keys.include?(firm_id), "Group #{c.inspect} does not contain firm_id #{firm_id}"
+    end
   end
-  
+
+  def test_should_group_by_arel_attribute
+    c = Account.sum(:credit_limit, :group => Account.arel_table[:firm_id])
+    [1,6,2].each do |firm_id|
+      assert c.keys.include?(firm_id), "Group #{c.inspect} does not contain firm_id #{firm_id}"
+    end
+  end
+
   def test_should_group_by_multiple_fields
     c = Account.count(:all, :group => ['firm_id', :credit_limit])
     [ [nil, 50], [1, 50], [6, 50], [6, 55], [9, 53], [2, 60] ].each { |firm_and_limit| assert c.keys.include?(firm_and_limit) }
@@ -109,6 +120,51 @@ class CalculationsTest < ActiveRecord::TestCase
     assert_equal [2, 6], c.keys.compact
   end
 
+  def test_limit_should_apply_before_count
+    accounts = Account.limit(3).where('firm_id IS NOT NULL')
+
+    assert_equal 3, accounts.count(:firm_id)
+    assert_equal 3, accounts.select(:firm_id).count
+  end
+
+  def test_count_should_shortcut_with_limit_zero
+    accounts = Account.limit(0)
+
+    assert_no_queries { assert_equal 0, accounts.count }
+  end
+
+  def test_limit_is_kept
+    return if current_adapter?(:OracleAdapter)
+
+    queries = assert_sql { Account.limit(1).count }
+    assert_equal 1, queries.length
+    assert_match(/LIMIT/, queries.first)
+  end
+
+  def test_offset_is_kept
+    return if current_adapter?(:OracleAdapter)
+
+    queries = assert_sql { Account.offset(1).count }
+    assert_equal 1, queries.length
+    assert_match(/OFFSET/, queries.first)
+  end
+
+  def test_limit_with_offset_is_kept
+    return if current_adapter?(:OracleAdapter)
+
+    queries = assert_sql { Account.limit(1).offset(1).count }
+    assert_equal 1, queries.length
+    assert_match(/LIMIT/, queries.first)
+    assert_match(/OFFSET/, queries.first)
+  end
+
+  def test_no_limit_no_offset
+    queries = assert_sql { Account.count }
+    assert_equal 1, queries.length
+    assert_no_match(/LIMIT/, queries.first)
+    assert_no_match(/OFFSET/, queries.first)
+  end
+
   def test_should_group_by_summed_field_having_condition
     c = Account.sum(:credit_limit, :group => :firm_id,
                                    :having => 'sum(credit_limit) > 50')
@@ -123,6 +179,13 @@ class CalculationsTest < ActiveRecord::TestCase
     assert_nil        c[1]
     assert_equal 105, c[6]
     assert_equal 60,  c[2]
+  end
+
+  def test_should_group_by_summed_field_having_condition_from_select
+    c = Account.select("MIN(credit_limit) AS min_credit_limit").group(:firm_id).having("MIN(credit_limit) > 50").sum(:credit_limit)
+    assert_nil       c[1]
+    assert_equal 60, c[2]
+    assert_equal 53, c[9]
   end
 
   def test_should_group_by_summed_association
@@ -274,6 +337,17 @@ class CalculationsTest < ActiveRecord::TestCase
     assert_equal 4, Account.count(:distinct => true, :include => :firm, :select => :credit_limit)
   end
 
+  def test_should_not_perform_joined_include_by_default
+    assert_equal Account.count, Account.includes(:firm).count
+    queries = assert_sql { Account.includes(:firm).count }
+    assert_no_match(/join/i, queries.last)
+  end
+
+  def test_should_perform_joined_include_when_referencing_included_tables
+    joined_count = Account.includes(:firm).where(:companies => {:name => '37signals'}).count
+    assert_equal 1, joined_count
+  end
+
   def test_should_count_scoped_select
     Account.update_all("credit_limit = NULL")
     assert_equal 0, Account.scoped(:select => "credit_limit").count
@@ -281,8 +355,8 @@ class CalculationsTest < ActiveRecord::TestCase
 
   def test_should_count_scoped_select_with_options
     Account.update_all("credit_limit = NULL")
-    Account.last.update_attribute('credit_limit', 49)
-    Account.first.update_attribute('credit_limit', 51)
+    Account.last.update_column('credit_limit', 49)
+    Account.first.update_column('credit_limit', 51)
 
     assert_equal 1, Account.scoped(:select => "credit_limit").count(:conditions => ['credit_limit >= 50'])
   end
@@ -293,6 +367,10 @@ class CalculationsTest < ActiveRecord::TestCase
 
   def test_count_with_column_parameter
     assert_equal 5, Account.count(:firm_id)
+  end
+
+  def test_count_with_uniq
+    assert_equal 4, Account.select(:credit_limit).uniq.count
   end
 
   def test_count_with_column_and_options_parameter
@@ -341,6 +419,10 @@ class CalculationsTest < ActiveRecord::TestCase
         Account.sum(:credit_limit, :from => 'accounts', :conditions => "credit_limit > 50")
   end
 
+  def test_sum_array_compatibility
+    assert_equal Account.sum(:credit_limit), Account.sum(&:credit_limit)
+  end
+
   def test_average_with_from_option
     assert_equal Account.average(:credit_limit), Account.average(:credit_limit, :from => 'accounts')
     assert_equal Account.average(:credit_limit, :conditions => "credit_limit > 50"),
@@ -381,6 +463,55 @@ class CalculationsTest < ActiveRecord::TestCase
   end
 
   def test_pluck
-    assert_equal [50, 50, 50, 60, 55, 53], Account.order("id ASC").pluck(:credit_limit)
+    assert_equal [1,2,3,4], Topic.order(:id).pluck(:id)
+  end
+
+  def test_pluck_type_cast
+    topic = topics(:first)
+    relation = Topic.where(:id => topic.id)
+    assert_equal [ topic.approved ], relation.pluck(:approved)
+    assert_equal [ topic.last_read ], relation.pluck(:last_read)
+    assert_equal [ topic.written_on ], relation.pluck(:written_on)
+  end
+
+  def test_pluck_and_uniq
+    assert_equal [50, 53, 55, 60], Account.order(:credit_limit).uniq.pluck(:credit_limit)
+  end
+
+  def test_pluck_in_relation
+    company = Company.first
+    contract = company.contracts.create!
+    assert_equal [contract.id], company.contracts.pluck(:id)
+  end
+
+  def test_pluck_with_serialization
+    t = Topic.create!(:content => { :foo => :bar })
+    assert_equal [{:foo => :bar}], Topic.where(:id => t.id).pluck(:content)
+  end
+
+  def test_pluck_with_qualified_column_name
+    assert_equal [1,2,3,4], Topic.order(:id).pluck("topics.id")
+  end
+
+  def test_pluck_does_not_replace_select_clause
+    taks_relation = Topic.select("approved, id, id AS foo_id").order('foo_id DESC')
+    assert_equal [4,3,2,1], taks_relation.pluck(:id)
+    assert_equal [true, true, true, false], taks_relation.pluck(:approved)
+  end
+
+  def test_pluck_auto_table_name_prefix
+    c = Company.create!(:name => "test", :contracts => [Contract.new])
+    assert_equal [c.id], Company.joins(:contracts).pluck(:id)
+  end
+
+  def test_pluck_not_auto_table_name_prefix_if_column_joined
+    Company.create!(:name => "test", :contracts => [Contract.new(:developer_id => 7)])
+    assert_equal [7], Company.joins(:contracts).pluck(:developer_id).map(&:to_i)
+  end
+
+  def test_pluck_with_reserved_words
+    Possession.create!(:where => "Over There")
+
+    assert_equal ["Over There"], Possession.pluck(:where)
   end
 end

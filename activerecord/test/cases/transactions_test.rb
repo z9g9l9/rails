@@ -14,6 +14,21 @@ class TransactionTest < ActiveRecord::TestCase
     @first, @second = Topic.find(1, 2).sort_by { |t| t.id }
   end
 
+  def test_raise_after_destroy
+    assert !@first.frozen?
+
+    assert_raises(RuntimeError) {
+      Topic.transaction do
+        @first.destroy
+        assert @first.frozen?
+        raise
+      end
+    }
+
+    assert @first.reload
+    assert !@first.frozen?
+  end
+
   def test_successful
     Topic.transaction do
       @first.approved  = true
@@ -163,7 +178,7 @@ class TransactionTest < ActiveRecord::TestCase
         @first.author_name += '_this_should_not_end_up_in_the_db'
         @first.save!
         flunk
-      rescue => e
+      rescue
         assert_equal original_author_name, @first.reload.author_name
         assert_equal nbooks_before_save, Book.count
       ensure
@@ -182,7 +197,7 @@ class TransactionTest < ActiveRecord::TestCase
       :bonus_time => "2005-01-30t15:28:00.00+01:00",
       :content => "Have a nice day",
       :approved => false)
-    new_record_snapshot = new_topic.new_record?
+    new_record_snapshot = !new_topic.persisted?
     id_present = new_topic.has_attribute?(Topic.primary_key)
     id_snapshot = new_topic.id
 
@@ -195,12 +210,29 @@ class TransactionTest < ActiveRecord::TestCase
         flunk
       rescue => e
         assert_equal "Make the transaction rollback", e.message
-        assert_equal new_record_snapshot, new_topic.new_record?, "The topic should have its old new_record value"
+        assert_equal new_record_snapshot, !new_topic.persisted?, "The topic should have its old persisted value"
         assert_equal id_snapshot, new_topic.id, "The topic should have its old id"
         assert_equal id_present, new_topic.has_attribute?(Topic.primary_key)
       ensure
         remove_exception_raising_after_create_callback_to_topic
       end
+    end
+  end
+
+  def test_callback_rollback_in_create_with_record_invalid_exception
+    begin
+      Topic.class_eval <<-eoruby, __FILE__, __LINE__ + 1
+        remove_method(:after_create_for_transaction)
+        def after_create_for_transaction
+          raise ActiveRecord::RecordInvalid.new(Author.new)
+        end
+      eoruby
+
+      new_topic = Topic.create(:title => "A new topic")
+      assert !new_topic.persisted?, "The topic should not be persisted"
+      assert_nil new_topic.id, "The topic should not have an ID"
+    ensure
+      remove_exception_raising_after_create_callback_to_topic
     end
   end
 
@@ -251,6 +283,27 @@ class TransactionTest < ActiveRecord::TestCase
 
       begin
         Topic.transaction :requires_new => true do
+          @first.happy = false
+          @first.save!
+          raise
+        end
+      rescue
+      end
+    end
+
+    assert @first.reload.approved?
+    assert !@second.reload.approved?
+  end if Topic.connection.supports_savepoints?
+
+  def test_force_savepoint_on_instance
+    @first.transaction do
+      @first.approved  = true
+      @second.approved = false
+      @first.save!
+      @second.save!
+
+      begin
+        @second.transaction :requires_new => true do
           @first.happy = false
           @first.save!
           raise
@@ -341,6 +394,18 @@ class TransactionTest < ActiveRecord::TestCase
     end
   end
 
+  def test_rollback_when_saving_a_frozen_record
+    expected_raise = (RUBY_VERSION < '1.9') ? TypeError : RuntimeError
+
+    topic = Topic.new(:title => 'test')
+    topic.freeze
+    e = assert_raise(expected_raise) { topic.save }
+    assert_equal "can't modify frozen hash", e.message.downcase
+    assert !topic.persisted?, 'not persisted'
+    assert_nil topic.id
+    assert topic.frozen?, 'not frozen'
+  end
+
   def test_restore_active_record_state_for_all_records_in_a_transaction
     topic_1 = Topic.new(:title => 'test_1')
     topic_2 = Topic.new(:title => 'test_2')
@@ -349,23 +414,23 @@ class TransactionTest < ActiveRecord::TestCase
       assert topic_2.save
       @first.save
       @second.destroy
-      assert_equal false, topic_1.new_record?
+      assert topic_1.persisted?, 'persisted'
       assert_not_nil topic_1.id
-      assert_equal false, topic_2.new_record?
+      assert topic_2.persisted?, 'persisted'
       assert_not_nil topic_2.id
-      assert_equal false, @first.new_record?
+      assert @first.persisted?, 'persisted'
       assert_not_nil @first.id
-      assert_equal true, @second.destroyed?
+      assert @second.destroyed?, 'destroyed'
       raise ActiveRecord::Rollback
     end
 
-    assert_equal true, topic_1.new_record?
+    assert !topic_1.persisted?, 'not persisted'
     assert_nil topic_1.id
-    assert_equal true, topic_2.new_record?
+    assert !topic_2.persisted?, 'not persisted'
     assert_nil topic_2.id
-    assert_equal false, @first.new_record?
+    assert @first.persisted?, 'persisted'
     assert_not_nil @first.id
-    assert_equal false, @second.destroyed?
+    assert !@second.destroyed?, 'not destroyed'
   end
 
   if current_adapter?(:PostgreSQLAdapter) && defined?(PGconn::PQTRANS_IDLE)
@@ -399,7 +464,7 @@ class TransactionTest < ActiveRecord::TestCase
   end
 
   def test_sqlite_add_column_in_transaction
-    return true unless current_adapter?(:SQLite3Adapter, :SQLiteAdapter)
+    return true unless current_adapter?(:SQLite3Adapter)
 
     # Test first if column creation/deletion works correctly when no
     # transaction is in place.
@@ -529,8 +594,6 @@ end if Topic.connection.supports_savepoints?
 
 if current_adapter?(:PostgreSQLAdapter)
   class ConcurrentTransactionTest < TransactionTest
-    use_concurrent_connections
-
     # This will cause transactions to overlap and fail unless they are performed on
     # separate database connections.
     def test_transaction_per_thread
@@ -544,6 +607,7 @@ if current_adapter?(:PostgreSQLAdapter)
               topic.approved = !topic.approved?
               topic.save!
             end
+            Topic.connection.close
           end
         end
 
@@ -579,6 +643,7 @@ if current_adapter?(:PostgreSQLAdapter)
               dev = Developer.find(1)
               assert_equal original_salary, dev.salary
             end
+            Developer.connection.close
           end
         end
 
@@ -591,6 +656,7 @@ if current_adapter?(:PostgreSQLAdapter)
               assert_equal original_salary, Developer.find(1).salary
             end
           end
+          Developer.connection.close
         end
 
         threads.each { |t| t.join }
