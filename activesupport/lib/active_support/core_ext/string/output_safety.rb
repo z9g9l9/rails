@@ -126,9 +126,7 @@ module ActiveSupport #:nodoc:
         super
       else
         if html_safe?
-          new_safe_buffer = super
-          new_safe_buffer.instance_eval { @html_safe = true }
-          new_safe_buffer
+          super._gh_html_safe!
         else
           to_str[*args]
         end
@@ -136,18 +134,18 @@ module ActiveSupport #:nodoc:
     end
 
     def safe_concat(value)
-      raise SafeConcatError unless @html_safe
+      raise SafeConcatError unless html_safe?
       original_concat(value)
     end
 
     def initialize(*)
-      @html_safe = true
+      _gh_html_safe!
       super
     end
 
     def initialize_copy(other)
       super
-      @html_safe = other.html_safe?
+      _gh_html_safe_if!(other)
     end
 
     def clone_empty
@@ -179,10 +177,6 @@ module ActiveSupport #:nodoc:
       self.class.new(super(args))
     end
 
-    def html_safe?
-      defined?(@html_safe) && @html_safe
-    end
-
     def to_s
       self
     end
@@ -204,7 +198,7 @@ module ActiveSupport #:nodoc:
           end                                       # end
 
           def #{unsafe_method}!(*args)              # def capitalize!(*args)
-            @html_safe = false                      #   @html_safe = false
+            _gh_unset_html_safe!                    #   _gh_unset_html_safe!
             super                                   #   super
           end                                       # end
         EOT
