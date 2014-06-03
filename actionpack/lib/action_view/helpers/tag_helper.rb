@@ -126,7 +126,8 @@ module ActionView
 
         def content_tag_string(name, content, options, escape = true)
           tag_options = tag_options(options, escape) if options
-          "<#{name}#{tag_options}>#{escape ? ERB::Util.html_escape(content) : content}</#{name}>".html_safe
+          content     = ERB::Util.unwrapped_html_escape(content) if escape
+          "<#{name}#{tag_options}>#{content}</#{name}>".html_safe
         end
 
         def tag_options(options, escape = true)
@@ -137,7 +138,7 @@ module ActionView
                 attrs << %(#{key}="#{key}") if value
               elsif !value.nil?
                 final_value = value.is_a?(Array) ? value.join(" ") : value
-                final_value = html_escape(final_value) if escape
+                final_value = ERB::Util.unwrapped_html_escape(final_value) if escape
                 attrs << %(#{key}="#{final_value}")
               end
             end
