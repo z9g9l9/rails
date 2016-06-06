@@ -31,6 +31,13 @@ module ActionController #:nodoc:
     include AbstractController::Helpers
     include AbstractController::Callbacks
 
+    CSRF_BYTES               = 32
+    CSRF_SALT_BYTES          = 32
+    HASHED_CSRF_TOKEN_DIGEST = Digest::SHA256
+    HASHED_CSRF_TOKEN_BYTES  = 32
+    MASKED_CSRF_TOKEN_BYTES  = CSRF_SALT_BYTES + HASHED_CSRF_TOKEN_BYTES
+    ORIGIN_HEADER            = "HTTP_ORIGIN".freeze
+
     included do
       # Sets the token parameter name for RequestForgery. Calling +protect_from_forgery+
       # sets it to <tt>:authenticity_token</tt> by default.
@@ -43,9 +50,11 @@ module ActionController #:nodoc:
 
       helper_method :form_authenticity_token
       helper_method :protect_against_forgery?
+      helper_method :csrf_token
     end
 
     module ClassMethods
+
       # Turn on request forgery protection. Bear in mind that only non-GET, HTML/JavaScript requests are checked.
       #
       # Example:
@@ -85,20 +94,85 @@ module ActionController #:nodoc:
         reset_session
       end
 
-      # Returns true or false if a request is verified. Checks:
+      # Private: Checks if the the current request is verified to not be a cross-site
+      # request. Verifies:
+      #   * the format is restricted. By default, only HTML requests are checked.
+      #   * it is a GET request? Gets should be safe and idempotent
+      #   * the form_authenticity_token or X-CSRF-TOKEN header is a valid masked
+      #     CSRF token
       #
-      # * is it a GET request?  Gets should be safe and idempotent
-      # * Does the form_authenticity_token match the given token value from the params?
-      # * Does the X-CSRF-Token header match the form_authenticity_token
+      # Returns true or false if a request is verified.
       def verified_request?
-        !protect_against_forgery? || request.get? ||
-          form_authenticity_token == params[request_forgery_protection_token] ||
-          form_authenticity_token == request.headers['X-CSRF-Token']
+        !protect_against_forgery? ||
+          request.get?            ||
+          (any_form_authenticity_token_valid? && same_origin_request?)
       end
 
-      # Sets the token value for the current session.
+      # Private: Test if any received token value is a valid masked token for the
+      # current session.
+      #
+      # Returns true if any token is valid, otherwise false
+      def any_form_authenticity_token_valid?
+        token = form_authenticity_param
+        return false unless token.present? && token.is_a?(String)
+        masked_token_valid?(token)
+      end
+
+      # Private: Test if the passed token value is a valid masked token for the
+      # current session.
+      #
+      # token - Base64 value to validate
+      #
+      # Returns true if token is valid, otherwise false
+      def masked_token_valid?(token)
+        # Decode received token as Base64. Set token to `nil` if input contains
+        # invalid characters or has invalid padding
+        token_bytes = begin
+          Base64.strict_decode64(token)
+        rescue ArgumentError
+          nil
+        end
+
+        return false if token_bytes.blank? || token_bytes.length != MASKED_CSRF_TOKEN_BYTES
+
+        # Separate decoded bytes into one time salt and hashed token
+        salt = token_bytes.first(CSRF_SALT_BYTES)
+        hashed_token = token_bytes.last(HASHED_CSRF_TOKEN_BYTES)
+
+        # Generate the expected hashed token using the received one time salt and the
+        # CSRF token from the session
+        correct_hashed_token = HASHED_CSRF_TOKEN_DIGEST.digest(salt + csrf_token_bytes)
+
+        # Validate the received hashed token matches the generated hashed token
+        Rack::Utils.secure_compare(hashed_token, correct_hashed_token)
+      end
+
+      # Private: Generate masked token to be output in reponses. Each token
+      # generated is unique and can be verified using the CSRF token from the
+      # session and the one time salt embedded in the masked token.
+      #
+      # Returns Base64 encoded String of `SALT + DIGEST(SALT + CSRF_TOKEN)`.
       def form_authenticity_token
-        session[:_csrf_token] ||= SecureRandom.base64(32)
+        salt = SecureRandom.random_bytes(CSRF_SALT_BYTES)
+        masked_token = HASHED_CSRF_TOKEN_DIGEST.digest(salt + csrf_token_bytes)
+        Base64.strict_encode64(salt + masked_token)
+      end
+
+      # Private: Decode the Base64 encoded CSRF token stored within the session
+      # cookie.
+      #
+      # Returns String of CSRF token bytes.
+      def csrf_token_bytes
+        Base64.strict_decode64(csrf_token)
+      end
+
+      # Private: Retrieve the CSRF token value from the session cookie. If
+      # there is no CSRF token within the session cookie, create a new random
+      # token.
+      #
+      # Returns Base64 encoded String of CSRF token.
+      def csrf_token
+        session[:_csrf_token] ||= SecureRandom.base64(CSRF_BYTES)
       end
 
       # The form's authenticity parameter. Override to provide your own.
@@ -108,6 +182,19 @@ module ActionController #:nodoc:
 
       def protect_against_forgery?
         allow_forgery_protection
+      end
+
+      # Private: Checks if the request originated from github.com by looking at the
+      # Origin header.
+      #
+      # Returns boolean.
+      def same_origin_request?
+        origin = request.env[ORIGIN_HEADER]
+
+        # Some user agents don't send the Origin header.
+        return true if origin.blank?
+
+        origin == request.base_url
       end
   end
 end
